@@ -129,8 +129,49 @@
                         },
                         onClose: function () {
                             bKash.execute().onError();
+                            console.log('bKash modal closed - initiating cancel flow for order:', paymentObj.orderId);
                             submit_error("You have chosen to cancel the payment", null, 'cancel');
-                            callCancelPayment(paymentObj);
+                            // Call cancel payment API and then redirect to failure callback
+                            if (paymentObj && paymentObj.orderId) {
+                                $.ajax({
+                                    type: 'POST',
+                                    url: bKash_objects.wcPaymentCancelUrl,
+                                    dataType: "json",
+                                    data: {
+                                        action: 'bk_cancel',
+                                        security: $('#bkash-ajax-nonce').val(),
+                                        'orderId': paymentObj.orderId,
+                                        'paymentID': paymentObj.paymentID || '',
+                                        'invoiceID': paymentObj.invoiceID || '',
+                                        'status': 'cancel',
+                                        'apiVersion': 'v1.2.0-beta'
+                                    },
+                                    success: function (resp) {
+                                        console.log("Payment cancelled via API for order:", paymentObj.orderId);
+                                        // Redirect to failure callback page after server confirms cancellation
+                                        if (typeof bKash_objects !== 'undefined' && bKash_objects.failureCallback) {
+                                            var params = '?orderId=' + encodeURIComponent(paymentObj.orderId) + '&status=cancel';
+                                            if (paymentObj.paymentID) params += '&paymentID=' + encodeURIComponent(paymentObj.paymentID);
+                                            if (paymentObj.invoiceID) params += '&invoiceID=' + encodeURIComponent(paymentObj.invoiceID);
+                                            console.log("Redirecting to failure callback:", bKash_objects.failureCallback + params);
+                                            setTimeout(function () {
+                                                window.location.href = bKash_objects.failureCallback + params;
+                                            }, 300);
+                                        }
+                                    },
+                                    error: function (error) {
+                                        console.log("Error cancelling payment for order:", paymentObj.orderId, error);
+                                        // Still redirect to failure page even if cancel API fails
+                                        if (typeof bKash_objects !== 'undefined' && bKash_objects.failureCallback) {
+                                            var params = '?orderId=' + encodeURIComponent(paymentObj.orderId) + '&status=cancel';
+                                            console.log("Redirecting to failure callback despite error:", bKash_objects.failureCallback + params);
+                                            setTimeout(function () {
+                                                window.location.href = bKash_objects.failureCallback + params;
+                                            }, 500);
+                                        }
+                                    }
+                                });
+                            }
                         }
                     });
 

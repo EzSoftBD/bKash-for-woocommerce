@@ -26,6 +26,12 @@ class ProcessPayments {
 		$status      = sanitize_text_field( $_REQUEST['status'] );
 		$api_version = sanitize_text_field( $_REQUEST['apiVersion'] );
 
+		// Log callback received
+		$gateway = WC_Gateway_bKash();
+		if ( $gateway && $gateway->debug == 'yes' ) {
+			$gateway->log->add( $gateway->id, 'Execute Payment Callback: Order #' . $order_id . ', Status: ' . $status . ', PaymentID: ' . $payment_id );
+		}
+
 		global $woocommerce;
 		//To receive order id
 		$order       = wc_get_order( $order_id );
@@ -43,10 +49,9 @@ class ProcessPayments {
 				$response = $this->bKashObj->executePayment( $transaction->getPaymentID() );
 
 				if ( isset( $response['status_code'] ) && $response['status_code'] === 200 ) {
-
-					$mode = $transaction->getMode();
-
-					// 0011 - Checkout URL, 0000 - Create Agreement, 0001 - Create Payment
+				if ( $gateway && $gateway->debug == 'yes' ) {
+					$gateway->log->add( $gateway->id, 'Execute Payment API Success for Order #' . $order_id );
+				}
 					if ( $mode === '0000' ) {
 
 
@@ -169,10 +174,9 @@ class ProcessPayments {
 							'status' => 'Failed',
 						] );
 						$order->add_order_note( "bKash Payment: " . $message );
-
-						$message = $this->processResponse( $message );
+					if ( $gateway && $gateway->debug == 'yes' ) {
+						$gateway->log->add( $gateway->id, 'Payment Execution Failed for Order #' . $order_id . '. Message: ' . $message );
 					}
-				} else {
 					$message = $this->processResponse( "Communication issue with payment gateway" );
 				}
 
@@ -199,8 +203,14 @@ class ProcessPayments {
 					'status' => esc_html( $status ),
 				] );
 				$order->add_order_note( "bKash Payment is not successful. Status => " . esc_html( $status ) );
+				if ( $gateway && $gateway->debug == 'yes' ) {
+					$gateway->log->add( $gateway->id, 'Callback received with non-success status for Order #' . $order_id . '. Status: ' . esc_html( $status ) );
+				}
 			} else {
 				$order->add_order_note( "bKash Payment is already in Completed state. Tried to change Status to => " . esc_html( $status ) );
+				if ( $gateway && $gateway->debug == 'yes' ) {
+					$gateway->log->add( $gateway->id, 'Callback Status Change Rejected for Order #' . $order_id . ' - Already Completed' );
+				}
 			}
 
 			$message = $this->processResponse( "Transaction is " . $status );
@@ -234,6 +244,12 @@ class ProcessPayments {
 		$message      = '';
 		$isAgreement  = isset( $_REQUEST['agreement'] );
 		$agreement_id = sanitize_text_field( $_REQUEST['agreement_id'] ?? null );
+
+		// Log payment creation start
+		$gateway = WC_Gateway_bKash();
+		if ( $gateway && $gateway->debug == 'yes' ) {
+			$gateway->log->add( $gateway->id, 'Creating Payment for Order #' . $order_id . '. Integration Type: ' . $this->integration_type . ', Intent: ' . $intent );
+		}
 
 		//To receive order id and total
 		$order    = wc_get_order( $order_id );
@@ -329,6 +345,10 @@ class ProcessPayments {
 				$payment_payload['callbackURL'] .= '&invoiceID=' . $trxSaved->getInvoiceID();
 			}
 
+			if ( $gateway && $gateway->debug == 'yes' ) {
+				$gateway->log->add( $gateway->id, 'Payment Create API Call for Order #' . $order_id . '. Payload: ' . print_r( $payment_payload, true ) );
+			}
+
 			$createResponse = $this->bKashObj->paymentCreate( $payment_payload );
 
 			if ( isset( $createResponse['status_code'] ) && $createResponse['status_code'] === 200 ) {
@@ -338,9 +358,15 @@ class ProcessPayments {
 					// If any error for tokenized
 					if ( isset( $response['statusMessage'] ) && $response['statusMessage'] !== 'Successful' ) {
 						$message = $response['statusMessage'];
+						if ( $gateway && $gateway->debug == 'yes' ) {
+							$gateway->log->add( $gateway->id, 'Payment Create API Error for Order #' . $order_id . '. Message: ' . $message );
+						}
 					} // If any error for checkout
 					else if ( isset( $response['errorCode'] ) ) {
 						$message = $response['errorMessage'] ?? '';
+						if ( $gateway && $gateway->debug == 'yes' ) {
+							$gateway->log->add( $gateway->id, 'Payment Create API Error for Order #' . $order_id . '. Code: ' . $response['errorCode'] . ', Message: ' . $message );
+						}
 					} else if ( isset( $response['paymentID'] ) && ! empty( $response['paymentID'] ) ) {
 
 
@@ -348,6 +374,10 @@ class ProcessPayments {
 						WC()->cart->empty_cart();
 						if ( isset( $this->log ) && $this->log ) {
 							$this->log->add( $this->id, 'Cart emptied.' );
+						}
+
+						if ( $gateway && $gateway->debug == 'yes' ) {
+							$gateway->log->add( $gateway->id, 'Payment Created Successfully for Order #' . $order_id . '. PaymentID: ' . $response['paymentID'] );
 						}
 
 						$updated = $trxSaved->update( [ 'payment_id' => $response['paymentID'] ] );
@@ -373,18 +403,33 @@ class ProcessPayments {
 							}
 						} else {
 							$message = $this->processResponse( "Cannot process this payment right now, payment ID issue" );
+							if ( $gateway && $gateway->debug == 'yes' ) {
+								$gateway->log->add( $gateway->id, 'Payment ID Update Failed for Order #' . $order_id );
+							}
 						}
 					} else {
 						$message = $this->processResponse( "Cannot process this payment right now, unknown error message" );
+						if ( $gateway && $gateway->debug == 'yes' ) {
+							$gateway->log->add( $gateway->id, 'Payment Create API Unknown Error for Order #' . $order_id );
+						}
 					}
 				} else {
 					$message = $this->processResponse( "Cannot process this payment right now, not a valid response" );
+					if ( $gateway && $gateway->debug == 'yes' ) {
+						$gateway->log->add( $gateway->id, 'Invalid API Response for Order #' . $order_id );
+					}
 				}
 			} else {
 				$message = $this->processResponse( "Cannot process this payment right now, error in communication" );
+				if ( $gateway && $gateway->debug == 'yes' ) {
+					$gateway->log->add( $gateway->id, 'API Communication Error for Order #' . $order_id . '. Status Code: ' . ( $createResponse['status_code'] ?? 'N/A' ) );
+				}
 			}
 		} else {
 			$message = $trx->errorMessage;
+			if ( $gateway && $gateway->debug == 'yes' ) {
+				$gateway->log->add( $gateway->id, 'Transaction Save Error for Order #' . $order_id . '. Error: ' . $message );
+			}
 		}
 
 		wc_add_notice( $message, 'error' );
@@ -403,6 +448,11 @@ class ProcessPayments {
 	public function cancelPayment( string $order_id ) {
 
 		global $woocommerce;
+		$gateway = WC_Gateway_bKash();
+		if ( $gateway && $gateway->debug == 'yes' ) {
+			$gateway->log->add( $gateway->id, 'Cancel Payment Request for Order #' . $order_id );
+		}
+
 		//To receive order id
 		$order = wc_get_order( $order_id );
 		if ( $order ) {
@@ -419,12 +469,20 @@ class ProcessPayments {
 					$order->add_order_note( "bKash Payment has been cancelled, either failed or customer cancelled" );
 					$order->update_status( 'cancelled', 'Payment has been cancelled!' );
 
+					if ( $gateway && $gateway->debug == 'yes' ) {
+						$gateway->log->add( $gateway->id, 'Payment Cancelled Successfully for Order #' . $order_id );
+					}
+
 					return array(
 						'result'   => 'success',
 						'redirect' => null,
 						'response' => "Order cancelled!"
 					);
 
+				}
+
+				if ( $gateway && $gateway->debug == 'yes' ) {
+					$gateway->log->add( $gateway->id, 'Cancel Payment Failed for Order #' . $order_id . ' - Transaction not found' );
 				}
 
 				return array(
@@ -434,10 +492,18 @@ class ProcessPayments {
 
 			}
 
+			if ( $gateway && $gateway->debug == 'yes' ) {
+				$gateway->log->add( $gateway->id, 'Cancel Payment Failed for Order #' . $order_id . ' - Order not in pending status' );
+			}
+
 			return array(
 				'result'  => 'failure',
 				'message' => 'Order is not in pending status to cancel the payment'
 			);
+		}
+
+		if ( $gateway && $gateway->debug == 'yes' ) {
+			$gateway->log->add( $gateway->id, 'Cancel Payment Failed for Order #' . $order_id . ' - Order not found' );
 		}
 
 		return array(

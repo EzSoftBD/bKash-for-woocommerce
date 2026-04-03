@@ -33,6 +33,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	public $bKashObj;
 	public $refundObj;
 	public $refundError;
+	public $allow_guest_checkout;
 	private $CALLBACK_URL = "bkash_payment_process";
 	private $SUCCESS_CALLBACK_URL = "bkash_payment_success";
 	private $FAILURE_CALLBACK_URL = "bkash_payment_failure";
@@ -631,6 +632,8 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 				'wcAjaxURL'            => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->EXECUTE_URL ),
 				'wcPaymentCancelUrl'   => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->PAYMENT_CANCEL_URL ),
 				'cancelAgreement'      => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->CANCEL_AGREEMENT_URL ),
+				'failureCallback'      => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->FAILURE_CALLBACK_URL ),
+				'successCallback'      => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->SUCCESS_CALLBACK_URL ),
 				'review_order_payment' => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->REVIEW_ORDER_URL ),
 				'bKashScriptURL'       => esc_url( $bk_script_url )
 			) );
@@ -645,7 +648,9 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 			wp_localize_script( 'woocommerce-payment-gateway-bkash', 'bKash_objects', array(
 				'apiVersion'      => $this->api_version,
 				'sandbox'         => $this->sandbox,
-				'cancelAgreement' => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->CANCEL_AGREEMENT_URL )
+				'cancelAgreement' => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->CANCEL_AGREEMENT_URL ),
+				'failureCallback' => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->FAILURE_CALLBACK_URL ),
+				'successCallback' => esc_url( $this->siteUrl . BKASH_FW_WC_API . $this->SUCCESS_CALLBACK_URL )
 			) );
 
 			wp_enqueue_script( 'woocommerce-payment-gateway-bkash' );
@@ -764,11 +769,130 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	}
 
 	public function payment_success() {
-		// for later use
+		// Show a user-friendly success page with WooCommerce styling.
+		$order_id = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( $_REQUEST['orderId'] ) : '';
+		if ( $this->debug == 'yes' && ! empty( $order_id ) ) {
+			$this->log->add( $this->id, 'Payment Success callback received for Order #' . $order_id );
+		}
+		wp_head();
+		?>
+		<!doctype html>
+		<html <?php language_attributes(); ?>>
+		<head>
+			<meta charset="<?php bloginfo( 'charset' ); ?>">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title><?php esc_html_e( 'Payment Successful', 'woocommerce' ); ?></title>
+			<style>
+				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+				.woocommerce-notice-container { max-width: 600px; margin: 40px auto; background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
+				.woocommerce-notice { display: inline-block; border-left: 4px solid #2b8a3e; padding: 12px 15px; margin: 0 0 20px 0; text-align: left; background: #f0fdf4; }
+				.woocommerce-notice h2 { color: #2b8a3e; margin: 0 0 10px 0; font-size: 24px; }
+				.woocommerce-notice p { color: #666; margin: 10px 0; }
+				.woocommerce-notice a { color: #2b8a3e; text-decoration: none; font-weight: 600; }
+				.woocommerce-notice a:hover { text-decoration: underline; }
+				.button { display: inline-block; padding: 12px 30px; background: #2b8a3e; color: white; text-decoration: none; border-radius: 4px; margin-top: 20px; font-weight: 600; }
+				.button:hover { background: #1f6230; }
+			</style>
+		</head>
+		<body <?php body_class(); ?>>
+			<div class="woocommerce-notice-container">
+				<div class="woocommerce-notice">
+					<h2>✓ <?php esc_html_e( 'Payment Successful', 'woocommerce' ); ?></h2>
+					<p><?php esc_html_e( 'Your payment has been processed successfully. Thank you for your order!', 'woocommerce' ); ?></p>
+					<p style="font-size: 12px; color: #999; margin-top: 15px;"><?php esc_html_e( 'You will receive a confirmation email shortly.', 'woocommerce' ); ?></p>
+				</div>
+				<a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="button"><?php esc_html_e( 'Continue Shopping', 'woocommerce' ); ?></a>
+			</div>
+		</body>
+		</html>
+		<?php
+		wp_footer();
+		die();
 	}
 
 	public function payment_failure() {
-		// for later use
+		// Show a user-friendly failure/cancellation page with WooCommerce styling.
+		$status = isset( $_REQUEST['status'] ) ? sanitize_text_field( $_REQUEST['status'] ) : 'failure';
+		$raw_message = $_REQUEST['message'] ?? $_REQUEST['errorMessage'] ?? '';
+		$message = is_string( $raw_message ) ? sanitize_text_field( $raw_message ) : '';
+		$order_id = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( $_REQUEST['orderId'] ) : '';
+
+		// Mark transaction and order as cancelled/failed before showing page
+		if ( ! empty( $order_id ) ) {
+			$order = wc_get_order( $order_id );
+			if ( $order ) {
+				$is_cancelled = ( strtolower( $status ) === 'cancel' );
+				$new_order_status = $is_cancelled ? 'cancelled' : 'failed';
+				$status_label = $is_cancelled ? 'Cancelled' : 'Failed';
+
+				// Only update if order is still pending
+				if ( $order->get_status() === 'pending' ) {
+					$order->update_status( $new_order_status, 'bKash Payment ' . $status_label . ': ' . ( ! empty( $message ) ? $message : 'No details provided' ) );
+					if ( $this->debug == 'yes' ) {
+						$this->log->add( $this->id, 'Order #' . $order_id . ' status updated to ' . $new_order_status . '. Reason: ' . $message );
+					}
+				}
+			}
+
+			$trx_obj = new Transaction();
+			$trx = $trx_obj->getTransactionByOrderId( $order_id );
+			if ( $trx && $trx->getStatus() !== 'Completed' && $trx->getStatus() !== 'Failed' && $trx->getStatus() !== 'Cancelled' ) {
+				$new_status = $is_cancelled ? 'Cancelled' : 'Failed';
+				$trx_obj->update( [ 'status' => $new_status ], [ 'order_id' => $order_id ] );
+				if ( $this->debug == 'yes' ) {
+					$this->log->add( $this->id, 'Transaction for Order #' . $order_id . ' marked as ' . $new_status );
+				}
+			}
+		}
+
+		$is_cancelled = ( strtolower( $status ) === 'cancel' );
+		$title = $is_cancelled ? __( 'Payment Cancelled', 'woocommerce' ) : __( 'Payment Failed', 'woocommerce' );
+		$color = $is_cancelled ? '#ff9800' : '#d9534f';
+		$icon = $is_cancelled ? '✕' : '✕';
+		$subtitle = $is_cancelled 
+			? __( 'Your payment has been cancelled. No charges have been made.', 'woocommerce' )
+			: __( 'Your payment could not be processed. Please try again or contact support.', 'woocommerce' );
+
+		wp_head();
+		?>
+		<!doctype html>
+		<html <?php language_attributes(); ?>>
+		<head>
+			<meta charset="<?php bloginfo( 'charset' ); ?>">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title><?php echo esc_html( $title ); ?></title>
+			<style>
+				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+				.woocommerce-notice-container { max-width: 600px; margin: 40px auto; background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
+				.woocommerce-notice { display: inline-block; border-left: 4px solid <?php echo esc_attr( $color ); ?>; padding: 12px 15px; margin: 0 0 20px 0; text-align: left; background: <?php echo esc_attr( $is_cancelled ? '#fff3e0' : '#fdeaea' ); ?>; }
+				.woocommerce-notice h2 { color: <?php echo esc_attr( $color ); ?>; margin: 0 0 10px 0; font-size: 24px; }
+				.woocommerce-notice p { color: #666; margin: 10px 0; }
+				.woocommerce-notice .error-detail { color: #999; font-size: 13px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; }
+				.button { display: inline-block; padding: 12px 30px; background: #0073aa; color: white; text-decoration: none; border-radius: 4px; margin: 10px 5px; font-weight: 600; }
+				.button:hover { background: #005a87; }
+				.button-secondary { background: #999; }
+				.button-secondary:hover { background: #777; }
+			</style>
+		</head>
+		<body <?php body_class(); ?>>
+			<div class="woocommerce-notice-container">
+				<div class="woocommerce-notice">
+					<h2><?php echo esc_html( $icon . ' ' . $title ); ?></h2>
+					<p><?php echo esc_html( $subtitle ); ?></p>
+					<?php if ( ! empty( $message ) ): ?>
+						<div class="error-detail"><?php echo esc_html( $message ); ?></div>
+					<?php endif; ?>
+				</div>
+				<div style="margin-top: 30px;">
+					<a href="<?php echo esc_url( wc_get_checkout_url() ); ?>" class="button"><?php esc_html_e( 'Return to Checkout', 'woocommerce' ); ?></a>
+					<a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="button button-secondary"><?php esc_html_e( 'Back to Shop', 'woocommerce' ); ?></a>
+				</div>
+			</div>
+		</body>
+		</html>
+		<?php
+		wp_footer();
+		die();
 	}
 
 	/**
