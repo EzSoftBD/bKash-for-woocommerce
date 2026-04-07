@@ -20,8 +20,8 @@ class WebhookProcessor {
 		// GET THE RAW STREAM OF POST PAYLOAD
 		$this->payload = json_decode( file_get_contents( 'php://input' ), false );
 		if ( $this->payload ) {
-			$this->messageType    = isset( $_SERVER['HTTP_X_AMZ_SNS_MESSAGE_TYPE'] ) ? $_SERVER['HTTP_X_AMZ_SNS_MESSAGE_TYPE'] : null;
-			$this->signingCertURL = isset( $this->payload->SigningCertURL ) ? $this->payload->SigningCertURL : null;
+			$this->messageType    = $_SERVER['HTTP_X_AMZ_SNS_MESSAGE_TYPE'] ?? null;
+			$this->signingCertURL = $this->payload->SigningCertURL ?? null;
 		}
 		if ( $logger ) {
 			$this->log = $logger;
@@ -96,9 +96,9 @@ class WebhookProcessor {
 		$parsed             = parse_url( $url );
 
 		return ! (
-			empty( $parsed['scheme'] ) || empty( $parsed['host'] )
-			|| $parsed['scheme'] !== 'https' || substr( $url, - 4 ) !== '.pem'
-			|| ! preg_match( $defaultHostPattern, $parsed['host'] )
+			empty( $parsed['scheme'] ?? null ) || empty( $parsed['host'] ?? null )
+			|| ( $parsed['scheme'] ?? null ) !== 'https' || substr( $url, - 4 ) !== '.pem'
+			|| ! preg_match( $defaultHostPattern, $parsed['host'] ?? '' )
 		);
 	}
 

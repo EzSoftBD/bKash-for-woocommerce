@@ -111,7 +111,7 @@ class ApiComm {
 				$response = json_decode( $get_token['response'], true );
 				if ( isset( $response['id_token'] ) && ! is_null( $response['id_token'] ) ) {
 					$this->token = $response['id_token'];
-					$expiry      = time() + $response['expires_in'];
+					$expiry      = time() + ( $response['expires_in'] ?? 0 );
 
 					$this->addOrUpdateOption( "bkash_grant_token", $this->token );
 					$this->addOrUpdateOption( "bkash_grant_token_expiry", $expiry );
@@ -265,24 +265,33 @@ class ApiComm {
 
 		if ( $this->integration_product === 'checkout' ) {
 			$body = array(
-				'amount'                  => $params['amount'] ?? '',
-				'currency'                => $params['currency'] ?? '',
-				'intent'                  => $params['intent'] ?? '',
-				'merchantInvoiceNumber'   => $params['merchantInvoiceNumber'] ?? '',
-				'merchantAssociationInfo' => $params['merchantAssociationInfo'] ?? '',
+				'amount'                => $params['amount'] ?? '',
+				'currency'              => $params['currency'] ?? '',
+				'intent'                => $params['intent'] ?? '',
+				'merchantInvoiceNumber' => $params['merchantInvoiceNumber'] ?? '',
 			);
+			// Only include optional merchantAssociationInfo when non-empty
+			if ( ! empty( $params['merchantAssociationInfo'] ) ) {
+				$body['merchantAssociationInfo'] = $params['merchantAssociationInfo'];
+			}
 		} else {
 			$body = array(
-				'mode'                    => $params['mode'] ?? '',
-				'payerReference'          => $params['payerReference'] ?? '',
-				'callbackURL'             => $params['callbackURL'] ?? '',
-				'agreementID'             => $params['agreementID'] ?? '',
-				'amount'                  => $params['amount'] ?? '',
-				'currency'                => $params['currency'] ?? '',
-				'intent'                  => $params['intent'] ?? '',
-				'merchantInvoiceNumber'   => $params['merchantInvoiceNumber'] ?? '',
-				'merchantAssociationInfo' => $params['merchantAssociationInfo'] ?? '',
+				'mode'                  => $params['mode'] ?? '',
+				'payerReference'        => $params['payerReference'] ?? '',
+				'callbackURL'           => $params['callbackURL'] ?? '',
+				'amount'                => $params['amount'] ?? '',
+				'currency'              => $params['currency'] ?? '',
+				'intent'                => $params['intent'] ?? '',
+				'merchantInvoiceNumber' => $params['merchantInvoiceNumber'] ?? '',
 			);
+			// Only include agreementID when non-empty (mode 0001), omitting it for mode 0011/0000
+			if ( ! empty( $params['agreementID'] ) ) {
+				$body['agreementID'] = $params['agreementID'];
+			}
+			// Only include optional merchantAssociationInfo when non-empty
+			if ( ! empty( $params['merchantAssociationInfo'] ) ) {
+				$body['merchantAssociationInfo'] = $params['merchantAssociationInfo'];
+			}
 		}
 
 		$response = $this->httpRequest( "Create Payment", $url, $http_status, "POST", $body, $header );

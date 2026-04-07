@@ -38,6 +38,9 @@ class ProcessPayments {
 		$trx         = new Transaction();
 		$transaction = $trx->getTransaction( $invoice_id );
 
+		// Ensure we have the payment mode from stored transaction
+		$mode = $transaction ? $transaction->getMode() : null;
+
 		if ( $status === 'success' ) {
 			if ( $transaction && $transaction->getPaymentID() === $payment_id ) {
 
@@ -49,7 +52,7 @@ class ProcessPayments {
 				$response = $this->bKashObj->executePayment( $transaction->getPaymentID() );
 
 				if ( isset( $response['status_code'] ) && $response['status_code'] === 200 ) {
-				if ( $gateway && $gateway->debug == 'yes' ) {
+					if ( $gateway && $gateway->debug == 'yes' ) {
 					$gateway->log->add( $gateway->id, 'Execute Payment API Success for Order #' . $order_id );
 				}
 					if ( $mode === '0000' ) {
@@ -111,9 +114,9 @@ class ProcessPayments {
 							if ( $updated && isset( $paymentResp['trxID'] ) && ! empty( $paymentResp['trxID'] ) ) {
 
 								// Payment complete.
-								if ( $paymentResp['transactionStatus'] === 'Authorized' ) {
+								if ( ( $paymentResp['transactionStatus'] ?? null ) === 'Authorized' ) {
 									$order->update_status( 'on-hold' );
-								} elseif ( $paymentResp['transactionStatus'] === 'Completed' ) {
+								} elseif ( ( $paymentResp['transactionStatus'] ?? null ) === 'Completed' ) {
 									$order->payment_complete();
 								} else {
 									$order->update_status( 'pending' );
@@ -123,18 +126,23 @@ class ProcessPayments {
 									$order->set_transaction_id( $paymentResp['trxID'] );
 									$order->save();
 
-								// Add order note.
+								// Add order note and log via gateway logger when available.
 								$order->add_order_note( sprintf( 'bKash PGW payment approved (ID: %s)', $paymentResp['trxID'] ) );
 
-								if ( isset( $this->log ) && $this->log ) {
-									$this->log->add( $this->id, 'bKash PGW payment approved (ID: ' . $response['trxID'] . ')' );
+								if ( $gateway && isset( $gateway->log ) ) {
+									$gateway->log->add( $gateway->id, 'bKash PGW payment approved (ID: ' . ( $paymentResp['trxID'] ?? '' ) . ')' );
 								}
 
 								// Reduce stock levels.
 								wc_reduce_stock_levels( $order_id );
 
-								if ( isset( $this->log ) && $this->log ) {
-									$this->log->add( $this->id, 'Stocked reduced.' );
+							// Empty cart only after confirmed successful payment execution.
+							if ( WC()->cart ) {
+								WC()->cart->empty_cart();
+							}
+
+							if ( $gateway && isset( $gateway->log ) ) {
+								$gateway->log->add( $gateway->id, 'Stock reduced and cart emptied for Order #' . $order_id );
 								}
 
 
@@ -160,9 +168,7 @@ class ProcessPayments {
 									) );
 									die();
 								} else {
-									wc_add_notice( $msg, 'error' );
-									wp_redirect( wc_get_checkout_url() );
-									die();
+									$this->redirectToFailurePage( $msg, $order_id );
 								}
 							}
 							$message = "Could not get transaction status";
@@ -177,17 +183,17 @@ class ProcessPayments {
 					if ( $gateway && $gateway->debug == 'yes' ) {
 						$gateway->log->add( $gateway->id, 'Payment Execution Failed for Order #' . $order_id . '. Message: ' . $message );
 					}
+					}
+				} else {
 					$message = $this->processResponse( "Communication issue with payment gateway" );
 				}
-
 				if ( $this->integration_type === 'checkout' ) {
 					echo json_encode( array(
 						'result'  => 'failure',
 						'message' => $message
 					) );
 				} else {
-					wc_add_notice( $message, 'error' );
-					wp_redirect( wc_get_checkout_url() );
+					$this->redirectToFailurePage( $message, $order_id );
 				}
 
 				die();
@@ -198,15 +204,19 @@ class ProcessPayments {
 		} else {
 			// transaction failed/cancelled.
 			$status = str_replace( [ 'cancel', 'failure' ], [ 'Cancelled', 'Failed' ], $status );
-			if ( $transaction->getStatus() !== 'Completed' ) {
+			$wc_status     = ( $status === 'Cancelled' ) ? 'cancelled' : 'failed';
+			$plain_message = 'bKash payment ' . strtolower( $status ) . '. Please try again.';
+
+			if ( $transaction && $transaction->getStatus() !== 'Completed' ) {
 				$transaction->update( [
 					'status' => esc_html( $status ),
 				] );
-				$order->add_order_note( "bKash Payment is not successful. Status => " . esc_html( $status ) );
+				// Update WooCommerce order status to reflect the payment outcome
+				$order->update_status( $wc_status, 'bKash Payment ' . $status . '.' );
 				if ( $gateway && $gateway->debug == 'yes' ) {
 					$gateway->log->add( $gateway->id, 'Callback received with non-success status for Order #' . $order_id . '. Status: ' . esc_html( $status ) );
 				}
-			} else {
+			} elseif ( $transaction ) {
 				$order->add_order_note( "bKash Payment is already in Completed state. Tried to change Status to => " . esc_html( $status ) );
 				if ( $gateway && $gateway->debug == 'yes' ) {
 					$gateway->log->add( $gateway->id, 'Callback Status Change Rejected for Order #' . $order_id . ' - Already Completed' );
@@ -216,16 +226,16 @@ class ProcessPayments {
 			$message = $this->processResponse( "Transaction is " . $status );
 		}
 
-		$order->add_order_note( 'bKash PGW payment declined (' . $message . ')' );
-
 		if ( $this->integration_type === 'checkout' ) {
 			echo json_encode( array(
 				'result'  => 'failure',
 				'message' => $message
 			) );
+			die();
 		} else {
-			wc_add_notice( $message, 'error' );
-			wp_redirect( $woocommerce->cart->get_cart_url() );
+			$notice_text    = isset( $plain_message ) ? $plain_message : strip_tags( $message );
+			$redirect_status = isset( $wc_status ) && $wc_status === 'cancelled' ? 'cancel' : 'failure';
+			$this->redirectToFailurePage( $notice_text, $order_id, $redirect_status );
 		}
 
 		// Return message to customer.
@@ -253,21 +263,21 @@ class ProcessPayments {
 
 		//To receive order id and total
 		$order    = wc_get_order( $order_id );
-		$amount   = $order->get_total();
+		$amount   = number_format( (float) $order->get_total(), 2, '.', '' );
 		$currency = get_woocommerce_currency();
 
 		//To receive user id and order details
 		$isLoggedIn         = is_user_logged_in();
 		$merchantCustomerId = $order->get_user_id();
 		$merchantOrderId    = $order->get_order_number();
+		$billingPhone       = $order->get_billing_phone();
 
 		if ( $this->integration_type === 'checkout' ) {
 			$payment_payload = array(
-				'amount'                  => $amount,
-				'currency'                => $currency,
-				'intent'                  => $intent,
-				'merchantInvoiceNumber'   => uniqid( "bfw_", false ) . '_' . $merchantOrderId,
-				'merchantAssociationInfo' => '',
+				'amount'                => $amount,
+				'currency'              => $currency,
+				'intent'                => $intent,
+				'merchantInvoiceNumber' => uniqid( "bfw_", false ) . '_' . $merchantOrderId,
 			);
 		} else {
 
@@ -302,7 +312,6 @@ class ProcessPayments {
 				}
 				// Guest checkout allowed — pay without agreement
 				$mode = '0011';
-					$mode = '0011';
 				}
 			}
 
@@ -311,9 +320,15 @@ class ProcessPayments {
 				$mode = Operations::getTokenizedPaymentMode( $this->integration_type, $order_id, $isAgreement, $storedAgreementID );
 			}
 
+			// Use billing phone as payerReference — bKash expects a meaningful payer identifier.
+			// Fall back to a unique ID only if no phone is available.
+			$payerReference = ! empty( $billingPhone )
+				? $billingPhone
+				: ( uniqid( 'bKash_', false ) . '_' . $merchantCustomerId );
+
 			$payment_payload = array(
 				'mode'                  => $mode,
-				'payerReference'        => uniqid( 'bKash_', false ) . '_' . $merchantCustomerId,
+				'payerReference'        => $payerReference,
 				'callbackURL'           => $callbackURL,
 				'agreementID'           => $storedAgreementID ?? '',
 				'amount'                => $amount,
@@ -355,26 +370,43 @@ class ProcessPayments {
 				$response = isset( $createResponse['response'] ) && is_string( $createResponse['response'] ) ? json_decode( $createResponse['response'], true ) : [];
 
 				if ( $response ) {
-					// If any error for tokenized
+					// Detect bKash API-level errors (statusCode is present in both checkout and tokenized error responses)
+					$api_status_code = $response['statusCode'] ?? $response['errorCode'] ?? null;
+					$api_status_msg  = $response['statusMessage'] ?? $response['errorMessage'] ?? '';
+
+					$has_api_error = false;
+
+					// Tokenized error: statusMessage present and not 'Successful'
 					if ( isset( $response['statusMessage'] ) && $response['statusMessage'] !== 'Successful' ) {
-						$message = $response['statusMessage'];
+						$has_api_error = true;
+					}
+					// Checkout error: errorCode present
+					if ( isset( $response['errorCode'] ) ) {
+						$has_api_error = true;
+					}
+
+					if ( $has_api_error ) {
+						$message = $api_status_msg;
+
 						if ( $gateway && $gateway->debug == 'yes' ) {
-							$gateway->log->add( $gateway->id, 'Payment Create API Error for Order #' . $order_id . '. Message: ' . $message );
+							$gateway->log->add( $gateway->id, 'Payment Create API Error for Order #' . $order_id . '. Code: ' . $api_status_code . ', Message: ' . $message );
 						}
-					} // If any error for checkout
-					else if ( isset( $response['errorCode'] ) ) {
-						$message = $response['errorMessage'] ?? '';
-						if ( $gateway && $gateway->debug == 'yes' ) {
-							$gateway->log->add( $gateway->id, 'Payment Create API Error for Order #' . $order_id . '. Code: ' . $response['errorCode'] . ', Message: ' . $message );
+
+						// Mark transaction failed so order status updates properly
+						$trxSaved->update( [ 'status' => 'Failed' ] );
+						$order = wc_get_order( $order_id );
+						if ( $order && $order->get_status() === 'pending' ) {
+							$order->update_status( 'failed', 'bKash Payment Create Error: ' . $message );
 						}
+
+						wc_add_notice( $message, 'error' );
+
+						return [
+							'result'    => 'failure',
+							'message'   => $message,
+							'errorCode' => (string) $api_status_code,
+						];
 					} else if ( isset( $response['paymentID'] ) && ! empty( $response['paymentID'] ) ) {
-
-
-						// Remove items from cart.
-						WC()->cart->empty_cart();
-						if ( isset( $this->log ) && $this->log ) {
-							$this->log->add( $this->id, 'Cart emptied.' );
-						}
 
 						if ( $gateway && $gateway->debug == 'yes' ) {
 							$gateway->log->add( $gateway->id, 'Payment Created Successfully for Order #' . $order_id . '. PaymentID: ' . $response['paymentID'] );
@@ -420,9 +452,14 @@ class ProcessPayments {
 					}
 				}
 			} else {
-				$message = $this->processResponse( "Cannot process this payment right now, error in communication" );
+				$message = "Cannot process this payment right now, error in communication";
 				if ( $gateway && $gateway->debug == 'yes' ) {
 					$gateway->log->add( $gateway->id, 'API Communication Error for Order #' . $order_id . '. Status Code: ' . ( $createResponse['status_code'] ?? 'N/A' ) );
+				}
+				// Mark order failed for HTTP-level errors
+				$order = wc_get_order( $order_id );
+				if ( $order && $order->get_status() === 'pending' ) {
+					$order->update_status( 'failed', 'bKash: ' . $message );
 				}
 			}
 		} else {
@@ -435,13 +472,31 @@ class ProcessPayments {
 		wc_add_notice( $message, 'error' );
 
 		return [
-			'result'  => 'failure',
-			'message' => $message
+			'result'    => 'failure',
+			'message'   => $message,
+			'errorCode' => '',
 		];
 	}
 
 	public function processResponse( $message, $type = 'error' ) {
-		return "<h3 style='color: #fff;font-weight: bold;margin: 0;font-size: 20px;line-height: 14px;'>Payment Failed</h3>" . $message;
+		return $message;
+	}
+
+	/**
+	 * Redirect the browser to the bKash payment failure page, passing error details as URL params.
+	 * Works with both classic checkout and Block Checkout (which ignores wc_add_notice).
+	 *
+	 * @param string $message  Plain-text error message to display.
+	 * @param string $order_id WC order ID (optional).
+	 * @param string $status   'failure' or 'cancel'.
+	 */
+	private function redirectToFailurePage( string $message, string $order_id = '', string $status = 'failure' ): void {
+		$params = [ 'status' => $status, 'message' => $message ];
+		if ( ! empty( $order_id ) ) {
+			$params['orderId'] = $order_id;
+		}
+		wp_redirect( get_site_url() . '/wc-api/bkash_payment_failure?' . http_build_query( $params ) );
+		die();
 	}
 
 

@@ -82,7 +82,18 @@
                                         bKash.create().onSuccess(result.response);
                                     } else {
                                         bKash.execute().onError();
-                                        submit_error(result.message, result.messages)
+                                        blockUI(true);
+                                        // If errorCode is present (e.g. 2029 duplicate), redirect to the styled failure page
+                                        if (result.errorCode && typeof bKash_objects !== 'undefined' && bKash_objects.failureCallback) {
+                                            var params = '?status=failure'
+                                                + '&errorCode=' + encodeURIComponent(result.errorCode)
+                                                + '&message=' + encodeURIComponent(result.message || '')
+                                                + (paymentObj.orderId ? '&orderId=' + encodeURIComponent(paymentObj.orderId) : '');
+                                            window.location.href = bKash_objects.failureCallback + params;
+                                        } else {
+                                            submit_error(result.message, result.messages);
+                                        }
+                                        return;
                                     }
                                     blockUI(true);
                                 },
@@ -115,8 +126,19 @@
                                             window.location.href = resp.redirect;
                                         }
                                     } else {
-                                        submit_error(resp.message);
                                         bKash.execute().onError();
+                                        blockUI(true);
+                                        // Redirect to styled failure page with error details
+                                        if (typeof bKash_objects !== 'undefined' && bKash_objects.failureCallback) {
+                                            var params = '?status=failure'
+                                                + '&message=' + encodeURIComponent(resp.message || 'Payment execution failed')
+                                                + (resp.errorCode ? '&errorCode=' + encodeURIComponent(resp.errorCode) : '')
+                                                + (paymentObj.orderId ? '&orderId=' + encodeURIComponent(paymentObj.orderId) : '');
+                                            window.location.href = bKash_objects.failureCallback + params;
+                                        } else {
+                                            submit_error(resp.message);
+                                        }
+                                        return;
                                     }
                                     blockUI(true);
                                 },

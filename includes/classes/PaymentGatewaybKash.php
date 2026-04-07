@@ -34,6 +34,17 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	public $refundObj;
 	public $refundError;
 	public $allow_guest_checkout;
+	public $integration_type;
+	public $intent;
+	public $api_version;
+	public $sandbox;
+	public $app_key;
+	public $app_secret;
+	public $username;
+	public $password;
+	public $debug;
+	public $enable_b2c;
+	public $is_webhook;
 	private $CALLBACK_URL = "bkash_payment_process";
 	private $SUCCESS_CALLBACK_URL = "bkash_payment_success";
 	private $FAILURE_CALLBACK_URL = "bkash_payment_failure";
@@ -54,11 +65,6 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	 * @var string
 	 */
 	private $siteUrl;
-	/**
-	 * @var string
-	 */
-	private $is_webhook;
-
 	/**
 	 * Constructor for the gateway.
 	 *
@@ -812,18 +818,19 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 
 	public function payment_failure() {
 		// Show a user-friendly failure/cancellation page with WooCommerce styling.
-		$status = isset( $_REQUEST['status'] ) ? sanitize_text_field( $_REQUEST['status'] ) : 'failure';
+		$status     = isset( $_REQUEST['status'] ) ? sanitize_text_field( $_REQUEST['status'] ) : 'failure';
+		$error_code = isset( $_REQUEST['errorCode'] ) ? sanitize_text_field( $_REQUEST['errorCode'] ) : '';
 		$raw_message = $_REQUEST['message'] ?? $_REQUEST['errorMessage'] ?? '';
-		$message = is_string( $raw_message ) ? sanitize_text_field( $raw_message ) : '';
-		$order_id = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( $_REQUEST['orderId'] ) : '';
+		$message     = is_string( $raw_message ) ? sanitize_text_field( $raw_message ) : '';
+		$order_id    = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( $_REQUEST['orderId'] ) : '';
 
 		// Mark transaction and order as cancelled/failed before showing page
 		if ( ! empty( $order_id ) ) {
 			$order = wc_get_order( $order_id );
 			if ( $order ) {
-				$is_cancelled = ( strtolower( $status ) === 'cancel' );
+				$is_cancelled     = ( strtolower( $status ) === 'cancel' );
 				$new_order_status = $is_cancelled ? 'cancelled' : 'failed';
-				$status_label = $is_cancelled ? 'Cancelled' : 'Failed';
+				$status_label     = $is_cancelled ? 'Cancelled' : 'Failed';
 
 				// Only update if order is still pending
 				if ( $order->get_status() === 'pending' ) {
@@ -835,7 +842,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 			}
 
 			$trx_obj = new Transaction();
-			$trx = $trx_obj->getTransactionByOrderId( $order_id );
+			$trx     = $trx_obj->getTransactionByOrderId( $order_id );
 			if ( $trx && $trx->getStatus() !== 'Completed' && $trx->getStatus() !== 'Failed' && $trx->getStatus() !== 'Cancelled' ) {
 				$new_status = $is_cancelled ? 'Cancelled' : 'Failed';
 				$trx_obj->update( [ 'status' => $new_status ], [ 'order_id' => $order_id ] );
@@ -845,13 +852,38 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 			}
 		}
 
-		$is_cancelled = ( strtolower( $status ) === 'cancel' );
-		$title = $is_cancelled ? __( 'Payment Cancelled', 'woocommerce' ) : __( 'Payment Failed', 'woocommerce' );
-		$color = $is_cancelled ? '#ff9800' : '#d9534f';
-		$icon = $is_cancelled ? '✕' : '✕';
-		$subtitle = $is_cancelled 
-			? __( 'Your payment has been cancelled. No charges have been made.', 'woocommerce' )
-			: __( 'Your payment could not be processed. Please try again or contact support.', 'woocommerce' );
+		$is_cancelled  = ( strtolower( $status ) === 'cancel' );
+		$is_duplicate  = ( $error_code === '2029' );
+
+		// Determine variant: duplicate > cancelled > failed
+		if ( $is_duplicate ) {
+			$variant       = 'duplicate';
+			$accent        = '#e65c00';
+			$bg_accent     = '#fff4ed';
+			$title         = __( 'Duplicate Payment Attempt', 'woocommerce' );
+			$subtitle      = __( 'A payment for this order was already attempted within the last 5 minutes.', 'woocommerce' );
+			$detail_msg    = ! empty( $message ) ? $message : __( 'Duplicate for All Transactions', 'woocommerce' );
+			$advice        = __( 'Please wait a few minutes before trying again, or contact support if you believe this is an error.', 'woocommerce' );
+			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+		} elseif ( $is_cancelled ) {
+			$variant       = 'cancelled';
+			$accent        = '#ff9800';
+			$bg_accent     = '#fff8e1';
+			$title         = __( 'Payment Cancelled', 'woocommerce' );
+			$subtitle      = __( 'You cancelled the payment. No charges have been made.', 'woocommerce' );
+			$detail_msg    = ! empty( $message ) ? $message : '';
+			$advice        = __( 'You can return to checkout and try again whenever you are ready.', 'woocommerce' );
+			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+		} else {
+			$variant       = 'failed';
+			$accent        = '#e53935';
+			$bg_accent     = '#ffeaea';
+			$title         = __( 'Payment Failed', 'woocommerce' );
+			$subtitle      = __( 'Your payment could not be processed. No charges have been made.', 'woocommerce' );
+			$detail_msg    = ! empty( $message ) ? $message : __( 'An unexpected error occurred. Please try again.', 'woocommerce' );
+			$advice        = __( 'Please return to checkout and try a different payment method, or contact support.', 'woocommerce' );
+			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+		}
 
 		wp_head();
 		?>
@@ -860,32 +892,93 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		<head>
 			<meta charset="<?php bloginfo( 'charset' ); ?>">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title><?php echo esc_html( $title ); ?></title>
+			<title><?php echo esc_html( $title ); ?> &mdash; <?php bloginfo( 'name' ); ?></title>
 			<style>
-				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
-				.woocommerce-notice-container { max-width: 600px; margin: 40px auto; background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
-				.woocommerce-notice { display: inline-block; border-left: 4px solid <?php echo esc_attr( $color ); ?>; padding: 12px 15px; margin: 0 0 20px 0; text-align: left; background: <?php echo esc_attr( $is_cancelled ? '#fff3e0' : '#fdeaea' ); ?>; }
-				.woocommerce-notice h2 { color: <?php echo esc_attr( $color ); ?>; margin: 0 0 10px 0; font-size: 24px; }
-				.woocommerce-notice p { color: #666; margin: 10px 0; }
-				.woocommerce-notice .error-detail { color: #999; font-size: 13px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; }
-				.button { display: inline-block; padding: 12px 30px; background: #0073aa; color: white; text-decoration: none; border-radius: 4px; margin: 10px 5px; font-weight: 600; }
-				.button:hover { background: #005a87; }
-				.button-secondary { background: #999; }
-				.button-secondary:hover { background: #777; }
+				*,*::before,*::after{box-sizing:border-box}
+				body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:#f0f2f5;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+				.bk-card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.10);max-width:520px;width:100%;overflow:hidden}
+				.bk-card__header{background:<?php echo esc_attr( $accent ); ?>;padding:36px 32px 28px;text-align:center;position:relative}
+				.bk-card__header::after{content:'';display:block;position:absolute;bottom:-1px;left:0;right:0;height:24px;background:#fff;border-radius:50% 50% 0 0/100% 100% 0 0}
+				.bk-icon{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff}
+				.bk-icon svg{width:36px;height:36px;color:#fff}
+				.bk-card__header h1{color:#fff;margin:0;font-size:22px;font-weight:700;letter-spacing:-.3px}
+				.bk-card__header p{color:rgba(255,255,255,.88);margin:8px 0 0;font-size:14px}
+				.bk-card__body{padding:28px 32px 32px}
+				.bk-alert{background:<?php echo esc_attr( $bg_accent ); ?>;border:1px solid <?php echo esc_attr( $accent ); ?>33;border-left:4px solid <?php echo esc_attr( $accent ); ?>;border-radius:6px;padding:14px 16px;margin-bottom:20px}
+				.bk-alert__label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:<?php echo esc_attr( $accent ); ?>;margin-bottom:4px}
+				.bk-alert__message{color:#333;font-size:14px;margin:0;word-break:break-word}
+				.bk-info{font-size:13px;color:#666;line-height:1.6;margin-bottom:24px;text-align:center}
+				<?php if ( $is_duplicate ) : ?>
+				.bk-timer{display:flex;align-items:center;justify-content:center;gap:8px;background:#fff4ed;border:1px solid #ffd0aa;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:<?php echo esc_attr( $accent ); ?>;font-weight:600}
+				.bk-timer svg{width:18px;height:18px;flex-shrink:0}
+				<?php endif; ?>
+				.bk-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px}
+				<?php if ( ! empty( $order_id ) ) : ?>
+				.bk-badge{display:inline-flex;align-items:center;gap:4px;background:#f5f5f5;border-radius:20px;padding:4px 12px;font-size:12px;color:#555;font-weight:600}
+				<?php endif; ?>
+				.bk-actions{display:flex;flex-direction:column;gap:10px}
+				.bk-btn{display:block;padding:14px 20px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s,transform .1s}
+				.bk-btn:active{transform:scale(.98)}
+				.bk-btn--primary{background:<?php echo esc_attr( $accent ); ?>;color:#fff}
+				.bk-btn--primary:hover{filter:brightness(1.08);color:#fff}
+				.bk-btn--ghost{background:#f5f5f5;color:#333}
+				.bk-btn--ghost:hover{background:#ebebeb;color:#333}
+				.bk-brand{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px;border-top:1px solid #f0f0f0;font-size:12px;color:#aaa}
+				.bk-brand svg{width:16px;height:16px}
 			</style>
 		</head>
-		<body <?php body_class(); ?>>
-			<div class="woocommerce-notice-container">
-				<div class="woocommerce-notice">
-					<h2><?php echo esc_html( $icon . ' ' . $title ); ?></h2>
+		<body <?php body_class( 'bk-failure-page' ); ?>>
+			<div class="bk-card">
+				<div class="bk-card__header">
+					<div class="bk-icon"><?php echo $icon_svg; // already safe SVG markup ?></div>
+					<h1><?php echo esc_html( $title ); ?></h1>
 					<p><?php echo esc_html( $subtitle ); ?></p>
-					<?php if ( ! empty( $message ) ): ?>
-						<div class="error-detail"><?php echo esc_html( $message ); ?></div>
-					<?php endif; ?>
 				</div>
-				<div style="margin-top: 30px;">
-					<a href="<?php echo esc_url( wc_get_checkout_url() ); ?>" class="button"><?php esc_html_e( 'Return to Checkout', 'woocommerce' ); ?></a>
-					<a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="button button-secondary"><?php esc_html_e( 'Back to Shop', 'woocommerce' ); ?></a>
+				<div class="bk-card__body">
+
+					<?php if ( $is_duplicate ) : ?>
+					<div class="bk-timer">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+						<?php esc_html_e( 'Duplicate payments are blocked for 5 minutes to protect your account.', 'woocommerce' ); ?>
+					</div>
+					<?php endif; ?>
+
+					<?php if ( ! empty( $detail_msg ) ) : ?>
+					<div class="bk-alert">
+						<div class="bk-alert__label">
+							<?php
+							if ( $is_duplicate ) {
+								esc_html_e( 'Reason', 'woocommerce' );
+							} elseif ( $is_cancelled ) {
+								esc_html_e( 'Status', 'woocommerce' );
+							} else {
+								esc_html_e( 'Error Detail', 'woocommerce' );
+							}
+							?>
+						</div>
+						<p class="bk-alert__message"><?php echo esc_html( $detail_msg ); ?></p>
+					</div>
+					<?php endif; ?>
+
+					<p class="bk-info"><?php echo esc_html( $advice ); ?></p>
+
+					<?php if ( ! empty( $order_id ) ) : ?>
+					<div class="bk-meta">
+						<span class="bk-badge">
+							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+							<?php echo esc_html( __( 'Order', 'woocommerce' ) . ' #' . $order_id ); ?>
+						</span>
+					</div>
+					<?php endif; ?>
+
+					<div class="bk-actions">
+						<a href="<?php echo esc_url( wc_get_checkout_url() ); ?>" class="bk-btn bk-btn--primary">
+							<?php esc_html_e( 'Return to Checkout', 'woocommerce' ); ?>
+						</a>
+						<a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="bk-btn bk-btn--ghost">
+							<?php esc_html_e( 'Continue Shopping', 'woocommerce' ); ?>
+						</a>
+					</div>
 				</div>
 			</div>
 		</body>

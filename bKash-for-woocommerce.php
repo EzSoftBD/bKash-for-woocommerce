@@ -6,12 +6,12 @@ namespace bKash\PGW;
  * Plugin Name:       bKash for WooCommerce by EzSoft
  * Plugin URI:        https://ezsoftbd.com
  * Description:       A bKash payment gateway plugin for WooCommerce.
- * Version:           2.0.0
+ * Version:           2.0.1
  * Author:            Tahmidul Haque
  * Author URI:        https://ezsoftbd.com
  * Requires at least: 6.4
  * Tested up to:      6.7
- * Requires PHP:      7.4
+ * Requires PHP:      8.2
  * Text Domain:       bkash-for-woocommerce
  * Domain Path:       languages
  * Network:           false

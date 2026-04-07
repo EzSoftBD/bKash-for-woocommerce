@@ -74,6 +74,13 @@ class AdminDashboard {
 				'show'       => true
 			),
 			array(
+				'title'      => 'Query Payment Status',
+				'menu_title' => 'Query Payment',
+				'route'      => '/query_payment',
+				'function'   => array( 'bKash\PGW\Admin\Module\QueryPaymentModule', 'query_payment' ),
+				'show'       => true
+			),
+			array(
 				'title'      => 'Webhook notifications',
 				'menu_title' => 'Webhook',
 				'route'      => '/webhooks',
