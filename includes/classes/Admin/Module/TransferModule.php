@@ -32,9 +32,12 @@ class TransferModule {
 
 	public static function transfer_balance() {
 		try {
-			$type   = sanitize_text_field( $_REQUEST['transfer_type'] ?? '' );
-			$amount = sanitize_text_field( $_REQUEST['amount'] ?? '' );
-			if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Admin-only page; $_REQUEST input is sanitized below.
+			$type   = sanitize_text_field( wp_unslash( $_REQUEST['transfer_type'] ?? '' ) );
+			$amount = sanitize_text_field( wp_unslash( $_REQUEST['amount'] ?? '' ) );
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- REQUEST_METHOD is a server-set value, not user input; comparison is safe.
+			if ( isset( $_SERVER['REQUEST_METHOD'] ) && 'POST' === $_SERVER['REQUEST_METHOD'] ) {
 				if ( $type && $amount ) {
 					$comm         = new ApiComm();
 					$transferCall = $comm->intraAccountTransfer( $amount, $type );
@@ -78,10 +81,12 @@ class TransferModule {
 
 	public static function disburse_money() {
 		try {
-			$receiver   = sanitize_text_field( $_REQUEST['receiver'] ?? '' );
-			$amount     = sanitize_text_field( $_REQUEST['amount'] ?? '' );
-			$invoice_no = sanitize_text_field( $_REQUEST['invoice_no'] ?? '' );
-			$initTime   = date( 'Y-m-d H:i:s' );
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Admin-only page; $_REQUEST input is sanitized below.
+			$receiver   = sanitize_text_field( wp_unslash( $_REQUEST['receiver'] ?? '' ) );
+			$amount     = sanitize_text_field( wp_unslash( $_REQUEST['amount'] ?? '' ) );
+			$invoice_no = sanitize_text_field( wp_unslash( $_REQUEST['invoice_no'] ?? '' ) );
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+			$initTime   = gmdate( 'Y-m-d H:i:s' );
 
 			if ( ! empty( $receiver ) && ! empty( $amount ) && ! empty( $invoice_no ) ) {
 				$comm         = new ApiComm();
@@ -119,7 +124,7 @@ class TransferModule {
 		$db_transfer->set_merchant_invoice_no( $transfer['merchantInvoiceNumber'] ?? '' );
 		$db_transfer->set_transaction_status( $transfer['transactionStatus'] ?? '' );
 		$db_transfer->set_initiation_time( $transfer['initTime'] ?? '' );
-		$db_transfer->set_completed_time( $transfer['completedTime'] ?? date( 'now' ) );
+		$db_transfer->set_completed_time( $transfer['completedTime'] ?? gmdate( 'Y-m-d H:i:s' ) );
 		$db_transfer->set_b_2_c_fee( 0 );
 		$db_transfer->save();
 

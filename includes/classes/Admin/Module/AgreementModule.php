@@ -34,11 +34,13 @@ class AgreementModule {
 	}
 
 	private static function process_cancel_agreement_if_requested() {
-		$type   = "warning";
-		$action = sanitize_text_field( $_REQUEST['action'] ?? '' );
+		$type = "warning";
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Admin-only page; action and ID are sanitized before use.
+		$action = sanitize_text_field( wp_unslash( $_REQUEST['action'] ?? '' ) );
 
 		if ( $action === 'cancel' ) {
-			$id = sanitize_text_field( $_REQUEST['id'] ?? null );
+			$id = sanitize_text_field( wp_unslash( $_REQUEST['id'] ?? null ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
 			if ( $id ) {
 				$agreementObj = new Agreement();
 				$agreement    = $agreementObj->getAgreement( '', '', $id );

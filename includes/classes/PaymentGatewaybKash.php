@@ -78,7 +78,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 
 	public function Initiate() {
 		$this->id                   = BKASH_FW_PLUGIN_SLUG;
-		$this->icon                 = apply_filters( 'woocommerce_payment_gateway_bkash_icon', plugins_url( '../assets/images/logo.png', __DIR__ ) );
+		$this->icon = apply_filters( 'woocommerce_payment_gateway_bkash_icon', plugins_url( '../assets/images/logo.png', __DIR__ ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Filter name is a WooCommerce convention for payment gateway icons.
 		$this->has_fields           = true;
 		$this->credit_fields        = false;
 		$this->order_button_text    = 'Pay with bKash';
@@ -328,12 +328,26 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		// WebhookModule
 		add_action( 'woocommerce_api_' . $this->WEBHOOK_URL, array( $this, 'webhook' ) );
 
-		// reset token when setting changes
+		// Clear cached grant token only when actual API credentials change.
+		// Avoids unnecessary token regeneration (bKash allows max 2 grant token calls per hour).
 		add_action( 'update_option', function ( $option_name, $old_value, $value ) {
 
 			if ( $option_name === 'woocommerce_' . BKASH_FW_PLUGIN_SLUG . '_settings' ) {
-				$apiComm = new ApiComm();
-				$apiComm->resetToken();
+				$credential_keys = [
+					'integration_type', 'sandbox', 'bkash_api_version',
+					'app_key', 'app_secret', 'username', 'password',
+					'sandbox_app_key', 'sandbox_app_secret', 'sandbox_username', 'sandbox_password',
+				];
+				foreach ( $credential_keys as $key ) {
+					if ( ( $old_value[ $key ] ?? null ) !== ( $value[ $key ] ?? null ) ) {
+						// A credential changed — clear cached token so next API call fetches a fresh one.
+						delete_option( 'bkash_grant_token' );
+						delete_option( 'bkash_grant_token_expiry' );
+						delete_option( 'bkash_integration_product' );
+						delete_option( 'bkash_token_cache_key' );
+						break;
+					}
+				}
 			}
 		}, 10, 3 );
 	}
@@ -512,7 +526,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	 * @return void
 	 */
 	public function admin_options() {
-		include_once( WC_Gateway_bKash()->plugin_path() . '/includes/classes/Admin/views/admin-options.php' );
+		include_once( WC_Gateway_bKash::get_instance()->plugin_path() . '/includes/classes/Admin/views/admin-options.php' );
 	}
 
 	/**
@@ -527,25 +541,24 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 
 		// PHP Version.
 		if ( PHP_VERSION_ID < 70400 ) {
-			echo '<div class="error version-error"><p>bKash PGW Error: ' . sprintf( 'bKash PGW requires PHP 7.4 and above. You are using version %s.', esc_html( PHP_VERSION ) ) . '</p>';
+			echo '<div class="error version-error"><p>bKash PGW Error: ' . sprintf( 'bKash PGW requires PHP 7.4 and above. You are using version %s.', esc_html( PHP_VERSION ) ) . '</p></div>';
 		} // Check required fields.
 		else if ( ! $this->app_key || ! $this->app_secret ) {
-			echo '<div class="error app-key-error"><p>bKash PGW Error: Please enter your app keys and secrets</p>';
+			echo '<div class="error app-key-error"><p>bKash PGW Error: Please enter your app keys and secrets</p></div>';
 		} else if ( 'BDT' !== get_woocommerce_currency() ) {
-			echo '<div class="error currency-error"><p>bKash PGW Error: Only supports BDT as currency</p>';
+			echo '<div class="error currency-error"><p>bKash PGW Error: Only supports BDT as currency</p></div>';
 		} // Show message if enabled and FORCE SSL is disabled and WordPress HTTPS plugin is not detected.
 		else if ( 'no' == get_option( 'woocommerce_force_ssl_checkout' ) && ! class_exists( 'WordPressHTTPS' ) && ! is_ssl() ) {
-			$admin_checkout_setting_url = esc_url( admin_url( 'admin.php?page=wc-settings&tab=checkout' ) );
+			$admin_checkout_setting_url = admin_url( 'admin.php?page=wc-settings&tab=checkout' );
 			?>
-            <div class="error ssl-error">
-                <p>bKash PGW is enabled, but the
-                    <a href="<?php esc_html_e( $admin_checkout_setting_url, "bkash-for-woocommerce" ); ?>">
-                        force SSL option
-                    </a>
-                    is disabled; your checkout may not be secure! Please enable SSL and ensure your server has a valid
-                    SSL certificate - bKash PGW will only work in sandbox mode.
-                </p>
-            </div>
+			<div class="error ssl-error">
+				<p><?php esc_html_e( 'bKash PGW is enabled, but the', 'bkash-for-woocommerce-by-ezsoft' ); ?>
+					<a href="<?php echo esc_url( $admin_checkout_setting_url ); ?>">
+						<?php esc_html_e( 'force SSL option', 'bkash-for-woocommerce-by-ezsoft' ); ?>
+					</a>
+					<?php esc_html_e( 'is disabled; your checkout may not be secure! Please enable SSL and ensure your server has a valid SSL certificate - bKash PGW will only work in sandbox mode.', 'bkash-for-woocommerce-by-ezsoft' ); ?>
+				</p>
+			</div>
 			<?php
 		}
 
@@ -561,8 +574,10 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	 * @access public
 	 */
 	public function app_key_missing_notice() {
-		$notice = '<div class="error woocommerce-message wc-connect"><p>Please set bKash PGW credentials for accepting payments!</p>';
-		add_action( 'admin_notices', $notice );
+		$notice = '<div class="error woocommerce-message wc-connect"><p>' . esc_html__( 'Please set bKash PGW credentials for accepting payments!', 'bkash-for-woocommerce-by-ezsoft' ) . '</p></div>';
+		add_action( 'admin_notices', function() use ( $notice ) {
+			echo wp_kses_post( $notice );
+		} );
 	}
 
 	/**
@@ -578,7 +593,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		}
 
 		if ( ! empty( $description ) ) {
-			echo wpautop( wptexturize( trim( $description ) ) );
+			echo wp_kses_post( wpautop( wptexturize( trim( $description ) ) ) );
 		}
 
 		if ( is_user_logged_in() ) {
@@ -587,11 +602,11 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 			$agreements     = $agreementModel->getAgreements( $user_id );
 
 			// This includes your custom payment fields.
-			include_once( WC_Gateway_bKash()->plugin_path() . '/includes/classes/views/html-payment-fields.php' );
+			include_once( WC_Gateway_bKash::get_instance()->plugin_path() . '/includes/classes/views/html-payment-fields.php' );
 		} else if ( $this->allow_guest_checkout === 'yes' ) {
 			// Guest checkout is allowed — show payment fields without saved agreements.
 			$agreements = [];
-			include_once( WC_Gateway_bKash()->plugin_path() . '/includes/classes/views/html-payment-fields.php' );
+			include_once( WC_Gateway_bKash::get_instance()->plugin_path() . '/includes/classes/views/html-payment-fields.php' );
 		} else if ( $this->integration_type === 'tokenized' ) {
 			echo "<p style='color:red'>Please login to complete the payment</p>";
 		}
@@ -682,13 +697,18 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	}
 
 	public function process_review_order_payment() {
-		$order_id = sanitize_text_field( $_POST['order_id'] );
+		if ( ! isset( $_POST['bkash-ajax-nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['bkash-ajax-nonce'] ) ), 'bkash-ajax-nonce' ) ) {
+			wp_send_json_error( array( 'message' => 'Security check failed' ), 403 );
+			return;
+		}
+
+		$order_id = isset( $_POST['order_id'] ) ? sanitize_text_field( wp_unslash( $_POST['order_id'] ) ) : '';
 		header( 'Content-Type: application/json' );
 
 		if ( $order_id ) {
-			echo json_encode( $this->process_payment( $order_id ) );
+			echo wp_json_encode( $this->process_payment( $order_id ) );
 		} else {
-			echo json_encode( array(
+			echo wp_json_encode( array(
 				'result'  => 'failure',
 				'message' => "Order ID is missing"
 			) );
@@ -704,7 +724,8 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	}
 
 	public function create_payment_callback_process() {
-		$order_id = sanitize_text_field( $_REQUEST['orderId'] );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Payment gateway redirect callback from bKash server; nonce verification is not applicable.
+		$order_id = sanitize_text_field( wp_unslash( $_REQUEST['orderId'] ?? '' ) );
 
 		global $woocommerce;
 		//To receive order id
@@ -713,8 +734,12 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 
 			$cbURL = get_site_url() . BKASH_FW_WC_API . $this->CALLBACK_URL . '?orderId=' . $order_id;
 
+			// Route through success callback page so the green confirmation screen is shown
+			// before the final redirect to the WooCommerce order-received page.
+			$successURL = $this->siteUrl . BKASH_FW_WC_API . $this->SUCCESS_CALLBACK_URL . '?orderId=' . rawurlencode( $order_id );
+
 			$process = new ProcessPayments( $this->integration_type, $this->allow_guest_checkout );
-			$process->executePayment( $this->get_return_url( $order ), $cbURL );
+			$process->executePayment( $successURL, $cbURL );
 		} else {
 			echo json_encode( array(
 				'result'  => 'failure',
@@ -725,7 +750,8 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	}
 
 	public function cancel_payment_process() {
-		$order_id = sanitize_text_field( $_REQUEST['orderId'] );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Payment cancellation redirect from bKash server; nonce verification is not applicable.
+		$order_id = sanitize_text_field( wp_unslash( $_REQUEST['orderId'] ?? '' ) );
 
 		$process = new ProcessPayments( $this->integration_type, $this->allow_guest_checkout );
 		$resp    = $process->cancelPayment( $order_id );
@@ -735,8 +761,13 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	}
 
 	public function cancel_agreement_api() {
+		if ( ! isset( $_REQUEST['bkash-ajax-nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['bkash-ajax-nonce'] ) ), 'bkash-ajax-nonce' ) ) {
+			wp_send_json_error( array( 'message' => 'Security check failed' ), 403 );
+			return;
+		}
+
 		$message      = "";
-		$agreement_id = sanitize_text_field( $_REQUEST['id'] );
+		$agreement_id = sanitize_text_field( wp_unslash( $_REQUEST['id'] ?? '' ) );
 
 		$agreementModel = new Agreement();
 		$agreement      = $agreementModel->getAgreement( $agreement_id );
@@ -775,11 +806,28 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 	}
 
 	public function payment_success() {
-		// Show a user-friendly success page with WooCommerce styling.
-		$order_id = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( $_REQUEST['orderId'] ) : '';
+		// Show a user-friendly success page then redirect to WooCommerce order confirmation page.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Redirect callback from bKash payment server; nonce is not applicable.
+		$order_id = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderId'] ) ) : '';
 		if ( $this->debug == 'yes' && ! empty( $order_id ) ) {
 			$this->log->add( $this->id, 'Payment Success callback received for Order #' . $order_id );
 		}
+
+		// Build WooCommerce order confirmation (thank-you) URL for the auto-redirect.
+		$redirect_url = wc_get_page_permalink( 'shop' ); // fallback
+		if ( ! empty( $order_id ) ) {
+			$order = wc_get_order( $order_id );
+			if ( $order ) {
+				$redirect_url = $this->get_return_url( $order );
+			}
+		}
+
+		$accent    = '#2e7d32';
+		$bg_accent = '#e8f5e9';
+		$title     = __( 'Payment Successful', 'bkash-for-woocommerce-by-ezsoft' );
+		$subtitle  = __( 'Your bKash payment was completed successfully.', 'bkash-for-woocommerce-by-ezsoft' );
+		$icon_svg  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>';
+
 		wp_head();
 		?>
 		<!doctype html>
@@ -787,28 +835,76 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		<head>
 			<meta charset="<?php bloginfo( 'charset' ); ?>">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title><?php esc_html_e( 'Payment Successful', 'woocommerce' ); ?></title>
+			<title><?php echo esc_html( $title ); ?> &mdash; <?php bloginfo( 'name' ); ?></title>
 			<style>
-				body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
-				.woocommerce-notice-container { max-width: 600px; margin: 40px auto; background: white; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
-				.woocommerce-notice { display: inline-block; border-left: 4px solid #2b8a3e; padding: 12px 15px; margin: 0 0 20px 0; text-align: left; background: #f0fdf4; }
-				.woocommerce-notice h2 { color: #2b8a3e; margin: 0 0 10px 0; font-size: 24px; }
-				.woocommerce-notice p { color: #666; margin: 10px 0; }
-				.woocommerce-notice a { color: #2b8a3e; text-decoration: none; font-weight: 600; }
-				.woocommerce-notice a:hover { text-decoration: underline; }
-				.button { display: inline-block; padding: 12px 30px; background: #2b8a3e; color: white; text-decoration: none; border-radius: 4px; margin-top: 20px; font-weight: 600; }
-				.button:hover { background: #1f6230; }
+				*,*::before,*::after{box-sizing:border-box}
+				body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:#f0f2f5;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+				.bk-card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.10);max-width:520px;width:100%;overflow:hidden}
+				.bk-card__header{background:<?php echo esc_attr( $accent ); ?>;padding:36px 32px 28px;text-align:center;position:relative}
+				.bk-card__header::after{content:'';display:block;position:absolute;bottom:-1px;left:0;right:0;height:24px;background:#fff;border-radius:50% 50% 0 0/100% 100% 0 0}
+				.bk-icon{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff}
+				.bk-icon svg{width:36px;height:36px;color:#fff}
+				.bk-card__header h1{color:#fff;margin:0;font-size:22px;font-weight:700;letter-spacing:-.3px}
+				.bk-card__header p{color:rgba(255,255,255,.88);margin:8px 0 0;font-size:14px}
+				.bk-card__body{padding:28px 32px 32px}
+				.bk-alert{background:<?php echo esc_attr( $bg_accent ); ?>;border:1px solid <?php echo esc_attr( $accent ); ?>33;border-left:4px solid <?php echo esc_attr( $accent ); ?>;border-radius:6px;padding:14px 16px;margin-bottom:20px}
+				.bk-alert__label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:<?php echo esc_attr( $accent ); ?>;margin-bottom:4px}
+				.bk-alert__message{color:#333;font-size:14px;margin:0}
+				.bk-info{font-size:13px;color:#666;line-height:1.6;margin-bottom:24px;text-align:center}
+				.bk-meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:24px}
+				.bk-badge{display:inline-flex;align-items:center;gap:4px;background:#f5f5f5;border-radius:20px;padding:4px 12px;font-size:12px;color:#555;font-weight:600}
+				.bk-actions{display:flex;flex-direction:column;gap:10px}
+				.bk-btn{display:block;padding:14px 20px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s,transform .1s}
+				.bk-btn:active{transform:scale(.98)}
+				.bk-btn--primary{background:<?php echo esc_attr( $accent ); ?>;color:#fff}
+				.bk-btn--primary:hover{filter:brightness(1.08);color:#fff}
+				.bk-brand{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px;border-top:1px solid #f0f0f0;font-size:12px;color:#aaa}
+				.bk-progress-bar{height:4px;background:#e0e0e0;border-radius:0 0 0 0;overflow:hidden}
+				.bk-progress-bar__fill{height:100%;background:<?php echo esc_attr( $accent ); ?>;width:0;animation:bk-fill 4s linear forwards}
+				@keyframes bk-fill{from{width:0}to{width:100%}}
 			</style>
 		</head>
-		<body <?php body_class(); ?>>
-			<div class="woocommerce-notice-container">
-				<div class="woocommerce-notice">
-					<h2>✓ <?php esc_html_e( 'Payment Successful', 'woocommerce' ); ?></h2>
-					<p><?php esc_html_e( 'Your payment has been processed successfully. Thank you for your order!', 'woocommerce' ); ?></p>
-					<p style="font-size: 12px; color: #999; margin-top: 15px;"><?php esc_html_e( 'You will receive a confirmation email shortly.', 'woocommerce' ); ?></p>
+		<body <?php body_class( 'bk-success-page' ); ?>>
+			<div class="bk-card">
+				<div class="bk-progress-bar"><div class="bk-progress-bar__fill"></div></div>
+				<div class="bk-card__header">
+					<div class="bk-icon"><?php echo wp_kses_post( $icon_svg ); ?></div>
+					<h1><?php echo esc_html( $title ); ?></h1>
+					<p><?php echo esc_html( $subtitle ); ?></p>
 				</div>
-				<a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="button"><?php esc_html_e( 'Continue Shopping', 'woocommerce' ); ?></a>
+				<div class="bk-card__body">
+
+					<div class="bk-alert">
+						<div class="bk-alert__label"><?php esc_html_e( 'Status', 'bkash-for-woocommerce-by-ezsoft' ); ?></div>
+						<p class="bk-alert__message"><?php esc_html_e( 'Payment confirmed. You will be redirected shortly.', 'bkash-for-woocommerce-by-ezsoft' ); ?></p>
+					</div>
+
+					<p class="bk-info"><?php esc_html_e( 'Redirecting you to your order details…', 'bkash-for-woocommerce-by-ezsoft' ); ?></p>
+
+					<?php if ( ! empty( $order_id ) ) : ?>
+					<div class="bk-meta">
+						<span class="bk-badge">
+							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+							<?php
+							/* translators: %s: order ID (number). */
+							echo esc_html( sprintf( __( 'Order #%s', 'bkash-for-woocommerce-by-ezsoft' ), $order_id ) );
+							?>
+						</span>
+					</div>
+					<?php endif; ?>
+
+					<div class="bk-actions">
+						<a href="<?php echo esc_url( $redirect_url ); ?>" class="bk-btn bk-btn--primary">
+							<?php esc_html_e( 'View Order Details', 'bkash-for-woocommerce-by-ezsoft' ); ?>
+						</a>
+					</div>
+				</div>
 			</div>
+			<script>
+				setTimeout( function () {
+					window.location.href = <?php echo wp_json_encode( $redirect_url ); ?>;
+				}, 4000 );
+			</script>
 		</body>
 		</html>
 		<?php
@@ -818,11 +914,15 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 
 	public function payment_failure() {
 		// Show a user-friendly failure/cancellation page with WooCommerce styling.
-		$status     = isset( $_REQUEST['status'] ) ? sanitize_text_field( $_REQUEST['status'] ) : 'failure';
-		$error_code = isset( $_REQUEST['errorCode'] ) ? sanitize_text_field( $_REQUEST['errorCode'] ) : '';
-		$raw_message = $_REQUEST['message'] ?? $_REQUEST['errorMessage'] ?? '';
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Redirect callback from bKash payment server; nonce is not applicable.
+		$status      = isset( $_REQUEST['status'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['status'] ) ) : 'failure';
+		$error_code  = isset( $_REQUEST['errorCode'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['errorCode'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- bKash server redirect callback; nonce not applicable. Values are sanitized below.
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Both $_REQUEST values are passed through sanitize_text_field() immediately after wp_unslash().
+		$raw_message = wp_unslash( isset( $_REQUEST['message'] ) ? $_REQUEST['message'] : ( isset( $_REQUEST['errorMessage'] ) ? $_REQUEST['errorMessage'] : '' ) );
 		$message     = is_string( $raw_message ) ? sanitize_text_field( $raw_message ) : '';
-		$order_id    = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( $_REQUEST['orderId'] ) : '';
+		$order_id    = isset( $_REQUEST['orderId'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderId'] ) ) : '';
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		// Mark transaction and order as cancelled/failed before showing page
 		if ( ! empty( $order_id ) ) {
@@ -860,28 +960,28 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 			$variant       = 'duplicate';
 			$accent        = '#e65c00';
 			$bg_accent     = '#fff4ed';
-			$title         = __( 'Duplicate Payment Attempt', 'woocommerce' );
-			$subtitle      = __( 'A payment for this order was already attempted within the last 5 minutes.', 'woocommerce' );
-			$detail_msg    = ! empty( $message ) ? $message : __( 'Duplicate for All Transactions', 'woocommerce' );
-			$advice        = __( 'Please wait a few minutes before trying again, or contact support if you believe this is an error.', 'woocommerce' );
+			$title         = __( 'Duplicate Payment Attempt', 'bkash-for-woocommerce-by-ezsoft' );
+			$subtitle      = __( 'A payment for this order was already attempted within the last 5 minutes.', 'bkash-for-woocommerce-by-ezsoft' );
+			$detail_msg    = ! empty( $message ) ? $message : __( 'Duplicate for All Transactions', 'bkash-for-woocommerce-by-ezsoft' );
+			$advice        = __( 'Please wait a few minutes before trying again, or contact support if you believe this is an error.', 'bkash-for-woocommerce-by-ezsoft' );
 			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 		} elseif ( $is_cancelled ) {
 			$variant       = 'cancelled';
 			$accent        = '#ff9800';
 			$bg_accent     = '#fff8e1';
-			$title         = __( 'Payment Cancelled', 'woocommerce' );
-			$subtitle      = __( 'You cancelled the payment. No charges have been made.', 'woocommerce' );
+			$title         = __( 'Payment Cancelled', 'bkash-for-woocommerce-by-ezsoft' );
+			$subtitle      = __( 'You cancelled the payment. No charges have been made.', 'bkash-for-woocommerce-by-ezsoft' );
 			$detail_msg    = ! empty( $message ) ? $message : '';
-			$advice        = __( 'You can return to checkout and try again whenever you are ready.', 'woocommerce' );
+			$advice        = __( 'You can return to checkout and try again whenever you are ready.', 'bkash-for-woocommerce-by-ezsoft' );
 			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
 		} else {
 			$variant       = 'failed';
 			$accent        = '#e53935';
 			$bg_accent     = '#ffeaea';
-			$title         = __( 'Payment Failed', 'woocommerce' );
-			$subtitle      = __( 'Your payment could not be processed. No charges have been made.', 'woocommerce' );
-			$detail_msg    = ! empty( $message ) ? $message : __( 'An unexpected error occurred. Please try again.', 'woocommerce' );
-			$advice        = __( 'Please return to checkout and try a different payment method, or contact support.', 'woocommerce' );
+			$title         = __( 'Payment Failed', 'bkash-for-woocommerce-by-ezsoft' );
+			$subtitle      = __( 'Your payment could not be processed. No charges have been made.', 'bkash-for-woocommerce-by-ezsoft' );
+			$detail_msg    = ! empty( $message ) ? $message : __( 'An unexpected error occurred. Please try again.', 'bkash-for-woocommerce-by-ezsoft' );
+			$advice        = __( 'Please return to checkout and try a different payment method, or contact support.', 'bkash-for-woocommerce-by-ezsoft' );
 			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
 		}
 
@@ -929,8 +1029,8 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		</head>
 		<body <?php body_class( 'bk-failure-page' ); ?>>
 			<div class="bk-card">
-				<div class="bk-card__header">
-					<div class="bk-icon"><?php echo $icon_svg; // already safe SVG markup ?></div>
+                    <div class="bk-card__header">
+                    	<div class="bk-icon"><?php echo wp_kses_post( $icon_svg ); // output sanitized ?></div>
 					<h1><?php echo esc_html( $title ); ?></h1>
 					<p><?php echo esc_html( $subtitle ); ?></p>
 				</div>
@@ -939,7 +1039,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 					<?php if ( $is_duplicate ) : ?>
 					<div class="bk-timer">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-						<?php esc_html_e( 'Duplicate payments are blocked for 5 minutes to protect your account.', 'woocommerce' ); ?>
+						<?php esc_html_e( 'Duplicate payments are blocked for 5 minutes to protect your account.', 'bkash-for-woocommerce-by-ezsoft' ); ?>
 					</div>
 					<?php endif; ?>
 
@@ -948,11 +1048,11 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 						<div class="bk-alert__label">
 							<?php
 							if ( $is_duplicate ) {
-								esc_html_e( 'Reason', 'woocommerce' );
+								esc_html_e( 'Reason', 'bkash-for-woocommerce-by-ezsoft' );
 							} elseif ( $is_cancelled ) {
-								esc_html_e( 'Status', 'woocommerce' );
+								esc_html_e( 'Status', 'bkash-for-woocommerce-by-ezsoft' );
 							} else {
-								esc_html_e( 'Error Detail', 'woocommerce' );
+								esc_html_e( 'Error Detail', 'bkash-for-woocommerce-by-ezsoft' );
 							}
 							?>
 						</div>
@@ -966,17 +1066,19 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 					<div class="bk-meta">
 						<span class="bk-badge">
 							<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-							<?php echo esc_html( __( 'Order', 'woocommerce' ) . ' #' . $order_id ); ?>
+							<?php
+							/* translators: %s: order ID (number). */
+							echo esc_html( sprintf( __( 'Order #%s', 'bkash-for-woocommerce-by-ezsoft' ), $order_id ) ); ?>
 						</span>
 					</div>
 					<?php endif; ?>
 
 					<div class="bk-actions">
 						<a href="<?php echo esc_url( wc_get_checkout_url() ); ?>" class="bk-btn bk-btn--primary">
-							<?php esc_html_e( 'Return to Checkout', 'woocommerce' ); ?>
+							<?php esc_html_e( 'Return to Checkout', 'bkash-for-woocommerce-by-ezsoft' ); ?>
 						</a>
 						<a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="bk-btn bk-btn--ghost">
-							<?php esc_html_e( 'Continue Shopping', 'woocommerce' ); ?>
+							<?php esc_html_e( 'Continue Shopping', 'bkash-for-woocommerce-by-ezsoft' ); ?>
 						</a>
 					</div>
 				</div>
@@ -1085,7 +1187,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 
 			if ( $this->debug == 'yes' ) {
 				$this->log->add( $this->id, 'Error in refunding the order #' . $order_id . '. bKash PGW response: '
-				                            . print_r( esc_html( $response ), true ) );
+											. wp_json_encode( $response ) );
 			}
 		}
 
@@ -1191,7 +1293,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		}
 
 		$payload = (array) json_decode( file_get_contents( 'php://input' ), true );
-		$this->log->add( $this->id, 'WEBHOOK => BODY: ' . print_r( $payload, true ) );
+		$this->log->add( $this->id, 'WEBHOOK => BODY: ' . wp_json_encode( $payload ) );
 
 		die();
 	}
@@ -1265,7 +1367,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 		foreach ( $notices as $notice ) {
 			printf( '<div class="notice notice-%1$s %2$s"><p>%3$s</p></div>',
 				esc_attr( $notice['type'] ),
-				$notice['dismissible'],
+				esc_attr( $notice['dismissible'] ),
 				esc_html( $notice['notice'] )
 			);
 		}

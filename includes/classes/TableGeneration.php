@@ -1,6 +1,9 @@
 <?php
-
 namespace bKash\PGW;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 define( "BKASH_UPGRADE_FILE", "wp-admin/includes/upgrade.php" );
 
@@ -13,6 +16,8 @@ class TableGeneration {
 		$my_products_db_version = BKASH_FW_PGW_VERSION;
 		$charset_collate        = $wpdb->get_charset_collate();
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.SchemaChange -- Table creation is required for plugin activation; this is the standard WordPress pattern.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table existence check; $table_name is built from $wpdb->prefix, not user input.
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
 
 			$sql = "CREATE TABLE $table_name (
@@ -34,7 +39,8 @@ class TableGeneration {
             ) $charset_collate;";
 
 			require_once( ABSPATH . BKASH_UPGRADE_FILE );
-			dbDelta( $sql );
+			dbDelta( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange -- Required for plugin table creation; standard WordPress pattern.
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.SchemaChange
 			add_option( 'bkash_transaction_table_version', $my_products_db_version );
 		}
 	}
@@ -45,6 +51,8 @@ class TableGeneration {
 		$my_products_db_version = BKASH_FW_PGW_VERSION;
 		$charset_collate        = $wpdb->get_charset_collate();
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.SchemaChange -- Table creation is required for plugin activation; this is the standard WordPress pattern.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table existence check; $table_name is built from $wpdb->prefix, not user input.
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
 
 			$sql = "CREATE TABLE $table_name (
@@ -63,7 +71,8 @@ class TableGeneration {
             ) $charset_collate;";
 
 			require_once( ABSPATH . BKASH_UPGRADE_FILE );
-			dbDelta( $sql );
+			dbDelta( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange -- Required for plugin table creation; standard WordPress pattern.
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.SchemaChange
 			add_option( 'bkash_webhook_table_version', $my_products_db_version );
 		}
 	}
@@ -74,6 +83,8 @@ class TableGeneration {
 		$my_products_db_version = BKASH_FW_PGW_VERSION;
 		$charset_collate        = $wpdb->get_charset_collate();
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.SchemaChange -- Table creation is required for plugin activation; this is the standard WordPress pattern.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table existence check; $table_name is built from $wpdb->prefix, not user input.
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
 
 			$sql = "CREATE TABLE $table_name (
@@ -86,7 +97,8 @@ class TableGeneration {
             ) $charset_collate;";
 
 			require_once( ABSPATH . BKASH_UPGRADE_FILE );
-			dbDelta( $sql );
+			dbDelta( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange -- Required for plugin table creation; standard WordPress pattern.
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.SchemaChange
 			add_option( 'bkash_agreement_mapping_table_version', $my_products_db_version );
 		}
 	}
@@ -97,6 +109,8 @@ class TableGeneration {
 		$my_products_db_version = BKASH_FW_PGW_VERSION;
 		$charset_collate        = $wpdb->get_charset_collate();
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.SchemaChange -- Table creation is required for plugin activation; this is the standard WordPress pattern.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table existence check; $table_name is built from $wpdb->prefix, not user input.
 		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) != $table_name ) {
 
 			$sql = "CREATE TABLE $table_name (
@@ -114,7 +128,8 @@ class TableGeneration {
             ) $charset_collate;";
 
 			require_once( ABSPATH . BKASH_UPGRADE_FILE );
-			dbDelta( $sql );
+			dbDelta( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange -- Required for plugin table creation; standard WordPress pattern.
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.SchemaChange
 			add_option( 'bkash_agreement_mapping_table_version', $my_products_db_version );
 		}
 	}

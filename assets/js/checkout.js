@@ -28,7 +28,7 @@
                     if (order_number !== undefined) {
                         // Overriding if order review page
                         isReviewPage = true;
-                        paymentReq.body = {order_id: order_number};
+                        paymentReq.body = {order_id: order_number, 'bkash-ajax-nonce': $('#bkash-ajax-nonce').val()};
                         paymentReq.paymentURL = bKash_objects.review_order_payment;
                     }
                 }

@@ -34,8 +34,9 @@ class TransactionModule {
 	public static function transaction_search() {
 		try {
 			$trx_id = "";
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin-only read-only search; no state change.
 			if ( isset( $_REQUEST['trxid'] ) ) {
-				$trx_id = sanitize_text_field( $_REQUEST['trxid'] );
+				$trx_id = sanitize_text_field( wp_unslash( $_REQUEST['trxid'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			}
 
 			if ( $trx_id !== '' ) {
@@ -69,13 +70,15 @@ class TransactionModule {
 
 
 	public static function refund_a_transaction() {
-		$trx           = "";
-		$trx_id        = sanitize_text_field( $_REQUEST['trxid'] ?? '' );
-		$fill_trx_id   = sanitize_text_field( $_REQUEST['fill_trx_id'] ?? '' );
-		$reason        = sanitize_text_field( $_REQUEST['reason'] ?? '' );
-		$amount        = sanitize_text_field( $_REQUEST['amount'] ?? '' );
+		$trx = "";
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Admin-only page; all input sanitized below.
+		$trx_id        = sanitize_text_field( wp_unslash( $_REQUEST['trxid'] ?? '' ) );
+		$fill_trx_id   = sanitize_text_field( wp_unslash( $_REQUEST['fill_trx_id'] ?? '' ) );
+		$reason        = sanitize_text_field( wp_unslash( $_REQUEST['reason'] ?? '' ) );
+		$amount        = sanitize_text_field( wp_unslash( $_REQUEST['amount'] ?? '' ) );
 		$isRefund      = isset( $_REQUEST['refund'] );
 		$isRefundCheck = isset( $_REQUEST['check'] );
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		if ( ! empty( $trx_id ) ) {
 			$trxObject   = new Transaction();

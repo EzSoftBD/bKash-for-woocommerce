@@ -1,8 +1,11 @@
 <?php
-
 namespace bKash\PGW\Admin;
 
 use bKash\PGW\TableGeneration;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 define( "BKASH_FW_PGW_VERSION", "1.2.0" );
 define( "BKASH_FW_TABLE_LIMIT", 10 );
@@ -159,7 +162,7 @@ class AdminDashboard {
 	 * @access public
 	 */
 	public function admin_styles() {
-		wp_enqueue_style( 'bfw-admin-css', plugins_url( '../../../assets/css/admin.css', __FILE__ ) );
+		wp_enqueue_style( 'bfw-admin-css', plugins_url( '../../../assets/css/admin.css', __FILE__ ), array(), BKASH_FW_PGW_VERSION );
 	}
 
 	public function Initiate() {

@@ -17,7 +17,7 @@ class Agreement {
 		global $wpdb;
 		$this->wpdb      = $wpdb;
 		$this->tableName = $wpdb->prefix . "bkash_agreement_mapping";
-		$this->dateTime  = date( 'now' );
+		$this->dateTime  = gmdate( 'Y-m-d H:i:s' );
 	}
 
 	/**
@@ -162,12 +162,14 @@ class Agreement {
 	public function getAgreement( $agreementID = "", $user_id = "", $id = "" ) {
 		if ( ! is_null( $this->wpdb ) ) {
 			$agreement = [];
+			$table = esc_sql( $this->tableName );
+
 			if ( ! empty( $agreementID ) ) {
-				$agreement = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `agreement_token` = %s ORDER BY ID DESC", $agreementID ) );
+				$agreement = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM `{$table}` WHERE `agreement_token` = %s ORDER BY ID DESC", $agreementID ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders.
 			} else if ( ! empty( $user_id ) ) {
-				$agreement = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `user_id` = %s ORDER BY ID DESC", $user_id ) );
+				$agreement = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM `{$table}` WHERE `user_id` = %s ORDER BY ID DESC", $user_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders.
 			} else {
-				$agreement = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `ID` = %s ORDER BY ID DESC", $id ) );
+				$agreement = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM `{$table}` WHERE `ID` = %s ORDER BY ID DESC", $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders.
 			}
 			if ( $agreement ) {
 				$this->agreementID = $agreement->agreement_token ?? null;
@@ -184,7 +186,9 @@ class Agreement {
 
 	public function getAgreements( $user_id ) {
 		if ( ! is_null( $this->wpdb ) ) {
-			return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `user_id` = %s ORDER BY ID DESC", $user_id ) );
+			$table = esc_sql( $this->tableName );
+			/* phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders. */
+			return $this->wpdb->get_results( $this->wpdb->prepare( "SELECT * FROM {$table} WHERE `user_id` = %s ORDER BY ID DESC", $user_id ) );
 		}
 
 		return null;

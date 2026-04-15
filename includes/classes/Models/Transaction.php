@@ -401,7 +401,7 @@ class Transaction {
 			'currency'         => $this->currency ?? 'BDT',
 			'refund_id'        => $this->refundID ?? null,
 			'status'           => $this->status ?? 'CREATED',
-			'datetime'         => date( 'Y-m-d H:i:s' ),
+			'datetime'         => gmdate( 'Y-m-d H:i:s' ),
 		] );
 
 		$this->errorMessage = $this->wpdb->last_error; // set if any error or null
@@ -443,9 +443,13 @@ class Transaction {
 		$transaction = null;
 		if ( ! is_null( $this->wpdb ) ) {
 			if ( ! empty( $invoice_id ) ) {
-				$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `invoice_id` = %s", $invoice_id ) );
+				$table = esc_sql( $this->tableName );
+			/* phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders. */
+			$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM {$table} WHERE `invoice_id` = %s", $invoice_id ) );
 			} else if ( ! empty( $trx_id ) ) {
-				$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `trx_id` = %s", $trx_id ) );
+				$table = esc_sql( $this->tableName );
+			/* phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders. */
+			$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM {$table} WHERE `trx_id` = %s", $trx_id ) );
 			}
 
 			if ( $transaction ) {
@@ -477,7 +481,9 @@ class Transaction {
 	public function getTransactionByOrderId( $order_id ) {
 		$transaction = null;
 		if (! empty( $order_id ) && ! is_null( $this->wpdb ) ) {
-			$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `order_id` = %s", $order_id ) );
+			$table = esc_sql( $this->tableName );
+			/* phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders. */
+			$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM {$table} WHERE `order_id` = %s", $order_id ) );
 
 			if ( $transaction ) {
 				return $this->buildTransaction( $transaction );

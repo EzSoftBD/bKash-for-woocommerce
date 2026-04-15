@@ -41,9 +41,12 @@
     /* -----------------------------------------------------------------------
      * 2. Settings injected server-side via BkashBlockPaymentMethod::get_payment_method_data()
      * -------------------------------------------------------------------- */
-    var settings = getSetting( 'bkash-for-woocommerce_data', {} );
+    var settings = getSetting(
+        'bkash-for-woocommerce-by-ezsoft_data',
+        getSetting( 'bkash-for-woocommerce_data', {} )
+    );
 
-    var SLUG             = settings.bKash_slug          || 'bkash-for-woocommerce';
+    var SLUG             = settings.bKash_slug          || 'bkash-for-woocommerce-by-ezsoft';
     var TITLE            = decodeEntities( settings.title || 'bKash Payment Gateway' );
     var DESCRIPTION      = decodeEntities( settings.description || '' );
     var ICON_URL         = settings.icon                || '';

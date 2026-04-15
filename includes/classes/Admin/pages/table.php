@@ -1,16 +1,19 @@
 <?php
-function keyToLabel( $str, $separator = "_" ) {
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+function bkash_fw_key_to_label( $str, $separator = "_" ) {
 	$str = str_replace( $separator, " ", $str );
 
 	return ucwords( $str );
 }
 
-function ifRefundValueIsPresent( $row, $column ) {
+function bkash_fw_if_refund_value_is_present( $row, $column ) {
 	return isset( $column[0] ) && str_contains( strtolower( $column[0] ), "refund" )
 	       && ! empty( $row->{$column[0]} );
 }
 
-function setStatusColor( $status ) {
+function bkash_fw_set_status_color( $status ) {
 	$color = "#909090";
 
 	if ( stripos( $status, "cancel" ) !== false ) {
@@ -29,8 +32,8 @@ function setStatusColor( $status ) {
 
 ?>
 
-    <div class="wrap abs">
-        <h2><?php esc_html_e( $title ?? 'List', "bkash-for-woocommerce" ); ?></h2>
+	<div class="wrap abs">
+		<h2><?php echo esc_html( $title ?? 'List' ); ?></h2>
 
         <!-- Search Form -->
         <div class="tablenav top">
@@ -39,22 +42,22 @@ function setStatusColor( $status ) {
                 <form action="#" method="GET">
 					<?php
 					if ( isset( $filters ) && count( $filters ) > 0 ) {
-						foreach ( $filters as $key => $filter ) {
-							$old_input = isset( $_GET[ $key ] ) ? sanitize_text_field( $_GET[ $key ] ) : "";
+					foreach ( $filters as $key => $filter ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+						$old_input = isset( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : ""; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound,WordPress.Security.NonceVerification.Recommended
 							?>
-                            <input
-                                    type='text'
-                                    name='<?php esc_attr_e( $key, "bkash-for-woocommerce" ); ?>'
-                                    value='<?php esc_attr_e( $old_input, "bkash-for-woocommerce" ); ?>'
-                                    placeholder='<?php esc_attr_e( $filter, "bkash-for-woocommerce" ); ?>'/>
+									<input
+									type='text'
+									name='<?php echo esc_attr( $key ); ?>'
+									value='<?php echo esc_attr( $old_input ); ?>'
+									placeholder='<?php echo esc_attr( $filter ); ?>'/>
 							<?php
 						}
 					}
 
-					$page_name = isset( $_GET['page'] ) ? sanitize_text_field( $_GET['page'] ) : '';
+					$page_name = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound,WordPress.Security.NonceVerification.Recommended
 					?>
-                    <input type='hidden' name='page'
-                           value='<?php esc_attr_e( $page_name, "bkash-for-woocommerce" ); ?>'/>
+					      <input type='hidden' name='page'
+						      value='<?php echo esc_attr( $page_name ); ?>'/>
                     <button type="submit">Search</button>
                 </form>
 
@@ -65,16 +68,16 @@ function setStatusColor( $status ) {
 
         <!-- Table -->
         <table id="transaction-list-table" class='wp-list-table widefat fixed striped posts'
-               aria-describedby="<?php esc_attr_e( $title ); ?>">
+			   aria-describedby="<?php echo esc_attr( $title ); ?>">
             <!-- Column Headers -->
             <tr>
 				<?php
 				if ( isset( $columns ) ) {
-					foreach ( array_keys( $columns ) as $table_head ) {
+						foreach ( array_keys( $columns ) as $table_head ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 						?>
-                        <th class='manage-column ss-list-width' scope='col'>
-							<?php esc_html_e( $table_head ); ?>
-                        </th>
+							<th class='manage-column ss-list-width' scope='col'>
+							<?php echo esc_html( $table_head ); ?>
+						</th>
 						<?php
 					}
 
@@ -91,28 +94,29 @@ function setStatusColor( $status ) {
 
 			<?php
 			if ( isset( $rows ) && count( (array) $rows ) > 0 ) {
-				foreach ( $rows as $row ) { ?>
+				foreach ( $rows as $row ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+				?>
                     <!-- Items -->
                     <tr>
 						<?php
-						foreach ( $columns as $column ) {
+						foreach ( $columns as $column ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 							// if want to show multiple value in a single column
 							if ( is_array( $column ) ) { ?>
                                 <td class='manage-column ss-list-width'>
 									<?php
-									if ( ifRefundValueIsPresent( $row, $column ) ) {
+									if ( bkash_fw_if_refund_value_is_present( $row, $column ) ) {
 										?>
                                         <span class="bKash-chip">Refunded</span>
 										<?php
 									}
 
-									foreach ( $column as $item ) {
+									foreach ( $column as $item ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 										if ( ! empty( $row->{$item} ) ) {
 											?>
                                             <p>
 												<?php
-												$constructed_value = keyToLabel( $item ) . ": " . $row->{$item};
-												esc_html_e( $constructed_value, "bkash-for-woocommerce" );
+												$constructed_value = bkash_fw_key_to_label( $item ) . ": " . $row->{$item}; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+												echo esc_html( $constructed_value );
 												?>
                                             </p>
 											<?php
@@ -127,13 +131,13 @@ function setStatusColor( $status ) {
 									<?php
 									if ( str_contains( strtolower( $column ), "status" ) ) {
 										?>
-                                        <span class="bKash-chip"
-                                              style="background: <?php esc_attr_e( setStatusColor( $row->{$column} ) ); ?> !important;">
-                                            <?php esc_html_e( $row->{$column}, "bkash-for-woocommerce" ); ?>
-                                        </span>
+																				<span class="bKash-chip"
+																							style="background: <?php echo esc_attr( bkash_fw_set_status_color( $row->{$column} ) ); ?> !important;">
+																						<?php echo esc_html( $row->{$column} ); ?>
+																				</span>
 										<?php
 									} else {
-										esc_html_e( $row->{$column}, "bkash-for-woocommerce" );
+										echo esc_html( $row->{$column} );
 									}
 									?>
                                 </td>
@@ -157,7 +161,7 @@ function setStatusColor( $status ) {
 												admin_url( 'admin.php?page=' . BKASH_FW_ADMIN_PAGE_SLUG . '/' . ( $action['page'] ?? '' )
 												           . '&action=' . ( $action['action'] ?? '' ) . '&id=' . $row->ID )
 											); ?>">
-										<?php esc_html_e( $action['title'] ?? '' ) ?>
+										<?php echo esc_html( $action['title'] ?? '' ); ?>
                                     </a>
 									<?php
 								}
@@ -176,7 +180,7 @@ function setStatusColor( $status ) {
 if ( isset( $page_links ) && $page_links ) {
 	?>
     <div class="tablenav pagination-links" style="width: 99%;">
-        <div class="tablenav-pages" style="margin: 1em 0"><?= $page_links ?></div>
+		<div class="tablenav-pages" style="margin: 1em 0"><?php echo wp_kses_post( $page_links ); ?></div>
     </div>
 	<?php
 }

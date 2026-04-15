@@ -20,7 +20,7 @@ class WebhookProcessor {
 		// GET THE RAW STREAM OF POST PAYLOAD
 		$this->payload = json_decode( file_get_contents( 'php://input' ), false );
 		if ( $this->payload ) {
-			$this->messageType    = $_SERVER['HTTP_X_AMZ_SNS_MESSAGE_TYPE'] ?? null;
+			$this->messageType    = isset( $_SERVER['HTTP_X_AMZ_SNS_MESSAGE_TYPE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_AMZ_SNS_MESSAGE_TYPE'] ) ) : null;
 			$this->signingCertURL = $this->payload->SigningCertURL ?? null;
 		}
 		if ( $logger ) {
@@ -93,11 +93,11 @@ class WebhookProcessor {
 
 	public function validateURL( $url ) {
 		$defaultHostPattern = '/^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/';
-		$parsed             = parse_url( $url );
+		$parsed = wp_parse_url( $url );
 
 		return ! (
 			empty( $parsed['scheme'] ?? null ) || empty( $parsed['host'] ?? null )
-			|| ( $parsed['scheme'] ?? null ) !== 'https' || substr( $url, - 4 ) !== '.pem'
+			|| ( $parsed['scheme'] ?? null ) !== 'https' || substr( $url, -4 ) !== '.pem'
 			|| ! preg_match( $defaultHostPattern, $parsed['host'] ?? '' )
 		);
 	}
@@ -174,7 +174,7 @@ class WebhookProcessor {
 				try {
 					$parseDate = \DateTime::createFromFormat( 'YmdHis', $message->dateTime );
 				} catch ( \Exception $e ) {
-					$parseDate = date( 'Y-m-d H:i:s' );
+					$parseDate = new \DateTime( 'now', new \DateTimeZone( 'UTC' ) );
 				}
 
 

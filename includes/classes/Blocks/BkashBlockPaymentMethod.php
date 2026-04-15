@@ -33,8 +33,12 @@ final class BkashBlockPaymentMethod extends AbstractPaymentMethodType {
 	 * @return void
 	 */
 	public function initialize() {
-		$this->name     = defined( 'BKASH_FW_PLUGIN_SLUG' ) ? BKASH_FW_PLUGIN_SLUG : 'bkash-for-woocommerce';
+		$this->name     = defined( 'BKASH_FW_PLUGIN_SLUG' ) ? BKASH_FW_PLUGIN_SLUG : 'bkash-for-woocommerce-by-ezsoft';
 		$this->settings = get_option( 'woocommerce_' . $this->name . '_settings', [] );
+
+		if ( empty( $this->settings ) ) {
+			$this->settings = get_option( 'woocommerce_bKash-for-woocommerce-by-EzSoft_settings', [] );
+		}
 	}
 
 	/**
@@ -71,7 +75,7 @@ final class BkashBlockPaymentMethod extends AbstractPaymentMethodType {
 		);
 
 		if ( function_exists( 'wp_set_script_translations' ) ) {
-			wp_set_script_translations( 'woocommerce-bkash-blocks', 'bkash-for-woocommerce' );
+			wp_set_script_translations( 'woocommerce-bkash-blocks', 'bkash-for-woocommerce-by-ezsoft' );
 		}
 
 		return [ 'woocommerce-bkash-blocks' ];
@@ -79,7 +83,7 @@ final class BkashBlockPaymentMethod extends AbstractPaymentMethodType {
 
 	/**
 	 * Return data that will be available to the client-side JS via
-	 * `getSetting('bkash-for-woocommerce_data', {})`.
+	 * `getSetting('bkash-for-woocommerce-by-ezsoft_data', {})`.
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -89,8 +93,8 @@ final class BkashBlockPaymentMethod extends AbstractPaymentMethodType {
 		$integration_type = $this->get_setting( 'integration_type', 'checkout' );
 		$site_url         = get_site_url();
 
-		$data = [
-			'title'                => $this->get_setting( 'title', __( 'bKash Payment Gateway', 'bkash-for-woocommerce' ) ),
+			$data = [
+			'title'                => $this->get_setting( 'title', __( 'bKash Payment Gateway', 'bkash-for-woocommerce-by-ezsoft' ) ),
 			'description'          => $this->get_setting( 'description', '' ),
 			'icon'                 => plugins_url( 'assets/images/logo.png', BKASH_FW_BASE_PATH . 'bKash-for-woocommerce.php' ),
 			'sandbox'              => $sandbox,

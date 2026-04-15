@@ -8,27 +8,27 @@ if ( isset( $agreements ) ) {
 		?>
         <table id='payment-fields-table'>
 			<?php
-			foreach ( $agreements as $i => $agreement ) {
+			foreach ( $agreements as $bkash_i => $bkash_agreement ) {
 				?>
                 <tr>
                     <td>
-                        <label for="<?php esc_html_e( $agreement->agreement_token ?? '', "bkash-for-woocommerce" ); ?>">
+                        <label for="<?php echo esc_attr( $bkash_agreement->agreement_token ?? '' ); ?>">
                             <input
-                                    id="<?php esc_html_e( $agreement->agreement_token ?? '', "bkash-for-woocommerce" ); ?>"
+                                    id="<?php echo esc_attr( $bkash_agreement->agreement_token ?? '' ); ?>"
                                     type="radio"
                                     name="agreement_id"
-                                    value="<?php esc_html_e( $agreement->agreement_token ?? '', "bkash-for-woocommerce" ); ?>"
-								<?php echo $i === 0 ? 'checked' : ''; ?>
+                                    value="<?php echo esc_attr( $bkash_agreement->agreement_token ?? '' ); ?>"
+                                <?php echo $bkash_i === 0 ? 'checked' : ''; ?>
                             />
-							<?php esc_html_e( $agreement->phone ?? '', "bkash-for-woocommerce" ); ?>
+                            <?php echo esc_html( $bkash_agreement->phone ?? '' ); ?>
                         </label>
                     </td>
                     <td>
                         <a
                                 class="cancelAgreementButton"
                                 href="javascript:void(0)"
-                                data-agreement="<?php esc_html_e( $agreement->agreement_token ?? '', "bkash-for-woocommerce" ); ?>"
-                        >Remove</a>
+                                data-agreement="<?php echo esc_attr( $bkash_agreement->agreement_token ?? '' ); ?>"
+                            ><?php esc_html_e( 'Remove', 'bkash-for-woocommerce-by-ezsoft' ); ?></a>
                     </td>
                 </tr>
 				<?php
@@ -40,7 +40,7 @@ if ( isset( $agreements ) ) {
                         <input id="new-agreement" type="radio" name="agreement_id"
                                value="new"
                         />
-                        Pay and remember a new bKash account
+                        <?php esc_html_e( 'Pay and remember a new bKash account', 'bkash-for-woocommerce-by-ezsoft' ); ?>
                     </label>
                 </td>
             </tr>
@@ -52,7 +52,7 @@ if ( isset( $agreements ) ) {
                     <td colspan="2">
                         <label for="non-agreement">
                             <input id="non-agreement" type="radio" name="agreement_id" value="no"/>
-                            Pay without remembering
+                            <?php esc_html_e( 'Pay without remembering', 'bkash-for-woocommerce-by-ezsoft' ); ?>
                         </label>
                     </td>
                 </tr>
@@ -65,10 +65,10 @@ if ( isset( $agreements ) ) {
 		?>
         <table id="tokenized-login-table" aria-describedby="tokenized login table">
             <tr>
-                <th scope="col">Login Required</th>
+                <th scope="col"><?php esc_html_e( 'Login Required', 'bkash-for-woocommerce-by-ezsoft' ); ?></th>
             </tr>
             <tr>
-                <td>Please login to complete the payment</td>
+                <td><?php esc_html_e( 'Please login to complete the payment', 'bkash-for-woocommerce-by-ezsoft' ); ?></td>
             </tr>
         </table>
 		<?php
@@ -76,10 +76,10 @@ if ( isset( $agreements ) ) {
 }
 
 if ( get_current_user_id() === 0 ) {
-	echo "To remember your bKash account number, please login and check remember";
+    esc_html_e( 'To remember your bKash account number, please login and check remember', 'bkash-for-woocommerce-by-ezsoft' );
 }
 
 ?>
 
 <input type="hidden" name="bkash-ajax-nonce" id="bkash-ajax-nonce"
-       value="<?php echo wp_kses_post( wp_create_nonce( 'bkash-ajax-nonce' ) ); ?>"/>
+    value="<?php echo wp_kses_post( wp_create_nonce( 'bkash-ajax-nonce' ) ); ?>"/>

@@ -10,11 +10,10 @@ namespace bKash\PGW;
  * Author:            Tahmidul Haque
  * Author URI:        https://ezsoftbd.com
  * Requires at least: 6.4
- * Tested up to:      6.7
+ * Tested up to:      6.9
  * Requires PHP:      8.2
- * Text Domain:       bkash-for-woocommerce
- * Domain Path:       languages
- * Network:           false
+ * Text Domain:       bkash-for-woocommerce-by-ezsoft
+ * Domain Path:       /languages
  * License:           GPL v2 or later
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * GitHub Plugin URI: https://ezsoftbd.com
@@ -33,7 +32,7 @@ namespace bKash\PGW;
  * You should have received a copy of the GNU General Public License
  * along with WooCommerce Payment Gateway (bKash PGW). If not, see <http://www.gnu.org/licenses/>.
  *
- * @package  bkash-for-woocommerce
+ * @package  bkash-for-woocommerce-by-ezsoft
  * @author   Tahmidul Haque
  * @category Payment
  */
@@ -44,10 +43,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'BKASH_FW_BASE_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BKASH_FW_BASE_URL', plugin_dir_url( __FILE__ ) );
-define( 'BKASH_FW_PLUGIN_SLUG', "bkash-for-woocommerce" );
+define( 'BKASH_FW_PLUGIN_SLUG', "bkash-for-woocommerce-by-ezsoft" );
 define( 'BKASH_FW_PLUGIN_VERSION', "1.1.0" );
 define( "BKASH_FW_PLUGIN_BASEPATH", plugin_basename( __FILE__ ) );
 require BKASH_FW_BASE_PATH . 'vendor/autoload.php';
+
+// Migrate settings from old mixed-case option key to new lowercase key (one-time, transparent).
+( function () {
+	$old_key = 'woocommerce_bKash-for-woocommerce-by-EzSoft_settings';
+	$new_key = 'woocommerce_bkash-for-woocommerce-by-ezsoft_settings';
+	if ( false === get_option( $new_key ) && false !== ( $old = get_option( $old_key ) ) ) {
+		update_option( $new_key, $old, 'yes' );
+	}
+} )();
 
 use bKash\PGW\Admin\AdminDashboard;
 
@@ -72,8 +80,8 @@ register_activation_hook( __FILE__, array( AdminDashboard::GetInstance(), 'Begin
 /**
  * Adding menus to wp admin menu and generating tables for this plugin
  */
-$dashboard = new AdminDashboard();
-$dashboard->Initiate();
+$bkashfw_dashboard = new AdminDashboard();
+$bkashfw_dashboard->Initiate();
 
 
 /**

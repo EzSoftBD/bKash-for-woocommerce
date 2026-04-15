@@ -243,7 +243,9 @@ class Transfer {
 	public function getTransfer( $trx_id = "" ) {
 		if ( ! is_null( $this->wpdb ) ) {
 			if ( ! empty( $trx_id ) ) {
-				$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM $this->tableName WHERE `trx_id` = %s", $trx_id ) );
+				$table = esc_sql( $this->tableName );
+				/* phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name uses esc_sql(); values use $wpdb->prepare() placeholders. */
+				$transaction = $this->wpdb->get_row( $this->wpdb->prepare( "SELECT * FROM {$table} WHERE `trx_id` = %s", $trx_id ) );
 			} else {
 				$transaction = null;
 			}

@@ -1,7 +1,12 @@
+<?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+?>
 <h3>bKash Payment Gateway</h3>
 
 <div class="gateway-banner bKash-hero-div bKash-success">
-    <img alt="bKash logo" src="<?php echo esc_url(\bKash\PGW\WC_Gateway_bKash()->plugin_url() . '/assets/images/logo.png'); ?>"/>
+    <img alt="bKash logo" src="<?php echo esc_url(\bKash\PGW\WC_Gateway_bKash::get_instance()->plugin_url() . '/assets/images/logo.png'); ?>"/>
     <p class="main">
         <strong>Getting started</strong>
     </p>
@@ -11,8 +16,8 @@
         <strong>Gateway Status</strong>
     </p>
     <ul>
-        <li>Debug Enabled? : <strong><?php esc_html_e( $this->debug, "bkash-for-woocommerce" ); ?></strong></li>
-        <li>Sandbox Enabled? : <strong><?php esc_html_e( $this->sandbox, "bkash-for-woocommerce" ); ?></strong></li>
+        <li>Debug Enabled? : <strong><?php echo esc_html( $this->debug ); ?></strong></li>
+        <li>Sandbox Enabled? : <strong><?php echo esc_html( $this->sandbox ); ?></strong></li>
     </ul>
 
 	<?php if ( empty( $this->app_key ) ) { ?>
@@ -27,15 +32,17 @@
 
 <table class="form-table" id="admin-option-table" aria-describedby="admin option Table">
 	<?php $this->generate_settings_html(); ?>
-    <script type="text/javascript">
-        let bKash_slug = "<?php echo BKASH_FW_PLUGIN_SLUG; ?>";
+</table>
 
+<script type="text/javascript">
+    let bKash_slug = "<?php echo esc_js( BKASH_FW_PLUGIN_SLUG ); ?>";
+
+    jQuery(document).ready(function($) {
         jQuery('#woocommerce_' + bKash_slug + '_sandbox').change(function () {
             let inputs = ["app_key", "app_secret", "username", "password"];
 
             let sandbox_inputs = inputs.map(e => "#woocommerce_" + bKash_slug + "_sandbox_" + e).join(",");
             let prod_inputs = inputs.map(e => "#woocommerce_" + bKash_slug + '_' + e).join(",");
-
 
             var sandbox = jQuery(sandbox_inputs).closest('tr'),
                 production = jQuery(prod_inputs).closest('tr');
@@ -59,5 +66,5 @@
                 b2cSetting.closest("tr").hide();
             }
         }).change();
-    </script>
-</table>
+    });
+</script>

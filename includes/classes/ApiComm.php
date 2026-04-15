@@ -20,6 +20,7 @@ class ApiComm {
 	 * @var false|mixed|void
 	 */
 	private $token;
+	private $token_cache_key;
 
 	public function __construct() {
 		global $wpdb;
@@ -45,15 +46,20 @@ class ApiComm {
 		$this->api_version         = $this->get_option( 'bkash_api_version', 'v1.2.0-beta' );
 
 		$this->sandbox    = $this->get_option( 'sandbox', false );
-		$this->app_key    = $this->sandbox === 'no' ? $this->get_option( 'app_key' ) : $this->get_option( 'sandbox_app_key' );
-		$this->app_secret = $this->sandbox === 'no' ? $this->get_option( 'app_secret' ) : $this->get_option( 'sandbox_app_secret' );
-		$this->username   = $this->sandbox === 'no' ? $this->get_option( 'username' ) : $this->get_option( 'sandbox_username' );
-		$this->password   = $this->sandbox === 'no' ? $this->get_option( 'password' ) : $this->get_option( 'sandbox_password' );
+		$this->app_key    = trim( (string) ( $this->sandbox === 'no' ? $this->get_option( 'app_key' ) : $this->get_option( 'sandbox_app_key' ) ) );
+		$this->app_secret = trim( (string) ( $this->sandbox === 'no' ? $this->get_option( 'app_secret' ) : $this->get_option( 'sandbox_app_secret' ) ) );
+		$this->username   = trim( (string) ( $this->sandbox === 'no' ? $this->get_option( 'username' ) : $this->get_option( 'sandbox_username' ) ) );
+		$this->password   = trim( (string) ( $this->sandbox === 'no' ? $this->get_option( 'password' ) : $this->get_option( 'sandbox_password' ) ) );
 		$this->debug      = $this->get_option( "debug", 'no' );
 	}
 
 	public function get_option( $key, $default = null ) {
 		$settings = get_option( 'woocommerce_' . BKASH_FW_PLUGIN_SLUG . '_settings' );
+
+		if ( is_null( $settings ) || false === $settings ) {
+			$settings = get_option( 'woocommerce_bKash-for-woocommerce-by-EzSoft_settings' );
+		}
+
 		if ( ! is_null( $settings ) ) {
 			return $settings[ $key ] ?? $default;
 		}
@@ -71,6 +77,7 @@ class ApiComm {
 		$url_prefix = $this->integration_product === 'checkout' ? 'checkout' : 'tokenized'; // the subdomain for bka.sh
 		$url_suffix = $this->integration_product === 'checkout' ? 'checkout' : 'tokenized/checkout'; // integration name after version
 		$env        = $this->sandbox == 'yes' ? 'sandbox' : 'pay'; // set the environment, either Sandbox or Pay  (Production)
+		$this->token_cache_key = md5( implode( '|', [ $this->integration_product, $env, $this->app_key, $this->username ] ) );
 
 		$this->constructed_url = "https://" . $url_prefix . "." . $env . ".bka.sh/"
 		                         . $this->api_version . "/" . $url_suffix . "/"; // rest of the part is related with individual api call
@@ -90,8 +97,9 @@ class ApiComm {
 			$token   = get_option( "bkash_grant_token" );
 			$expiry  = get_option( "bkash_grant_token_expiry" );
 			$product = get_option( "bkash_integration_product" );
+			$cache   = get_option( 'bkash_token_cache_key' );
 
-			if ( $this->integration_product === $product && ! is_null( $token ) && ( $expiry - time() > 0 ) ) { // if expiry time in seconds is greater than current time
+			if ( $this->integration_product === $product && $this->token_cache_key === $cache && ! empty( $token ) && false !== $token && ( (int) $expiry - time() > 0 ) ) { // token exists and not yet expired
 				$this->token = $token;
 			} else {
 				$this->readTokenFromAPI();
@@ -116,6 +124,7 @@ class ApiComm {
 					$this->addOrUpdateOption( "bkash_grant_token", $this->token );
 					$this->addOrUpdateOption( "bkash_grant_token_expiry", $expiry );
 					$this->addOrUpdateOption( "bkash_integration_product", $this->integration_product );
+					$this->addOrUpdateOption( 'bkash_token_cache_key', $this->token_cache_key );
 				} else {
 					Log::error( "Cannot read token from server, response ==> " . json_encode( $get_token ) );
 				}
@@ -162,8 +171,21 @@ class ApiComm {
 			$headers['username'] = $this->username;
 			$headers['password'] = $this->password;
 		} else {
-			$headers['authorization'] = $this->token;
-			$headers['x-app-key']     = $this->app_key;
+			if ( empty( $this->token ) ) {
+				$http_status = 401;
+				$header      = [];
+				$body        = wp_json_encode( [
+					'status'  => 'fail',
+					'message' => 'bKash authorization token is missing',
+				] );
+
+				Log::error( 'Skipping bKash API request because authorization token is missing for ' . $api_title );
+
+				return $body;
+			}
+
+			$headers['Authorization'] = $this->token;
+			$headers['X-APP-Key']     = $this->app_key;
 		}
 		if ( ! is_null( $header ) ) {
 			$headers = array_merge( $headers, $header );
@@ -176,8 +198,9 @@ class ApiComm {
 				'method'      => $method,
 				'timeout'     => 29,
 				'redirection' => 5,
-				'httpversion' => '1.0',
+				'httpversion' => '1.1',
 				'blocking'    => true,
+				'sslverify'   => true,
 				'headers'     => $headers,
 				'body'        => strtolower( $method ) === 'get' ? $post_data : json_encode( $post_data )
 			)
@@ -222,6 +245,7 @@ class ApiComm {
 		delete_option( "bkash_grant_token" );
 		delete_option( "bkash_grant_token_expiry" );
 		delete_option( "bkash_integration_product" );
+		delete_option( 'bkash_token_cache_key' );
 	}
 
 	/**
@@ -726,11 +750,14 @@ class Log {
 			}
 
 			if ( $logger ) {
-				$logger->add( 'bKash_PGW_API_LOG', print_r( $str, true ) );
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- API debug log only when WP_DEBUG is enabled.
+				$logger->add( 'bKash_PGW_API_LOG', var_export( $str, true ) );
 			} else if ( true === WP_DEBUG ) {
 				if ( is_array( $str ) || is_object( $str ) ) {
-					error_log( print_r( $str, true ) );
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Debug only when WP_DEBUG is enabled.
+					error_log( var_export( $str, true ) );
 				} else {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug only when WP_DEBUG is enabled.
 					error_log( $str );
 				}
 			}

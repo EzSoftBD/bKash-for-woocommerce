@@ -18,16 +18,19 @@ class ProcessPayments {
 	}
 
 	public function executePayment( string $orderPageURL, string $callbackURL = "" ) {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- external webhook/callback handler
 		$message = "";
 
-		$order_id    = sanitize_text_field( $_REQUEST['orderId'] );
-		$payment_id  = sanitize_text_field( $_REQUEST['paymentID'] );
-		$invoice_id  = sanitize_text_field( $_REQUEST['invoiceID'] );
-		$status      = sanitize_text_field( $_REQUEST['status'] );
-		$api_version = sanitize_text_field( $_REQUEST['apiVersion'] );
+		// This endpoint is called by the payment gateway webhook, not a WP form.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- external callback, cannot use WP nonces
+		$order_id    = sanitize_text_field( wp_unslash( $_REQUEST['orderId'] ?? '' ) );
+		$payment_id  = sanitize_text_field( wp_unslash( $_REQUEST['paymentID'] ?? '' ) );
+		$invoice_id  = sanitize_text_field( wp_unslash( $_REQUEST['invoiceID'] ?? '' ) );
+		$status      = sanitize_text_field( wp_unslash( $_REQUEST['status'] ?? '' ) );
+		$api_version = sanitize_text_field( wp_unslash( $_REQUEST['apiVersion'] ?? '' ) );
 
 		// Log callback received
-		$gateway = WC_Gateway_bKash();
+		$gateway = WC_Gateway_bKash::get_instance();
 		if ( $gateway && $gateway->debug == 'yes' ) {
 			$gateway->log->add( $gateway->id, 'Execute Payment Callback: Order #' . $order_id . ', Status: ' . $status . ', PaymentID: ' . $payment_id );
 		}
@@ -78,8 +81,8 @@ class ProcessPayments {
 									$createResp = $this->createPayment( $transaction->getOrderID(), $transaction->getIntent(), $callbackURL );
 
 									if ( isset( $createResp['redirect'] ) ) {
-										wp_redirect( $createResp['redirect'] );
-										die();
+										wp_safe_redirect( esc_url_raw( $createResp['redirect'] ) );
+										exit;
 									}
 
 									echo json_encode( $createResp );
@@ -154,8 +157,8 @@ class ProcessPayments {
 									) );
 									die();
 								}
-								wp_redirect( $orderPageURL );
-								die();
+								wp_safe_redirect( esc_url_raw( $orderPageURL ) );
+								exit;
 							}
 
 							if ( $updated && isset( $paymentResp['paymentID'] ) && ! empty( $paymentResp['paymentID'] ) ) {
@@ -233,13 +236,14 @@ class ProcessPayments {
 			) );
 			die();
 		} else {
-			$notice_text    = isset( $plain_message ) ? $plain_message : strip_tags( $message );
+			$notice_text    = isset( $plain_message ) ? $plain_message : wp_strip_all_tags( $message );
 			$redirect_status = isset( $wc_status ) && $wc_status === 'cancelled' ? 'cancel' : 'failure';
 			$this->redirectToFailurePage( $notice_text, $order_id, $redirect_status );
 		}
 
 		// Return message to customer.
 		die();
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 	}
 
 	/**
@@ -252,11 +256,13 @@ class ProcessPayments {
 	public function createPayment( string $order_id, string $intent = 'sale', string $callbackURL = "" ) {
 		global $woocommerce;
 		$message      = '';
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Payment data passed from WooCommerce checkout gateway callback; nonce is verified in the gateway init.
 		$isAgreement  = isset( $_REQUEST['agreement'] );
-		$agreement_id = sanitize_text_field( $_REQUEST['agreement_id'] ?? null );
+		$agreement_id = isset( $_REQUEST['agreement_id'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['agreement_id'] ) ) : null;
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		// Log payment creation start
-		$gateway = WC_Gateway_bKash();
+		$gateway = WC_Gateway_bKash::get_instance();
 		if ( $gateway && $gateway->debug == 'yes' ) {
 			$gateway->log->add( $gateway->id, 'Creating Payment for Order #' . $order_id . '. Integration Type: ' . $this->integration_type . ', Intent: ' . $intent );
 		}
@@ -361,7 +367,8 @@ class ProcessPayments {
 			}
 
 			if ( $gateway && $gateway->debug == 'yes' ) {
-				$gateway->log->add( $gateway->id, 'Payment Create API Call for Order #' . $order_id . '. Payload: ' . print_r( $payment_payload, true ) );
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Debug logging only runs when plugin debug mode is enabled.
+				$gateway->log->add( $gateway->id, 'Payment Create API Call for Order #' . $order_id . '. Payload: ' . wp_json_encode( $payment_payload ) );
 			}
 
 			$createResponse = $this->bKashObj->paymentCreate( $payment_payload );
@@ -495,7 +502,8 @@ class ProcessPayments {
 		if ( ! empty( $order_id ) ) {
 			$params['orderId'] = $order_id;
 		}
-		wp_redirect( get_site_url() . '/wc-api/bkash_payment_failure?' . http_build_query( $params ) );
+		wp_safe_redirect( esc_url_raw( get_site_url() . '/wc-api/bkash_payment_failure?' . http_build_query( $params ) ) );
+		exit;
 		die();
 	}
 
@@ -503,7 +511,7 @@ class ProcessPayments {
 	public function cancelPayment( string $order_id ) {
 
 		global $woocommerce;
-		$gateway = WC_Gateway_bKash();
+		$gateway = WC_Gateway_bKash::get_instance();
 		if ( $gateway && $gateway->debug == 'yes' ) {
 			$gateway->log->add( $gateway->id, 'Cancel Payment Request for Order #' . $order_id );
 		}

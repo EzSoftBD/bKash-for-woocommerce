@@ -1,21 +1,24 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 if ( isset( $trx ) && $trx ) {
 	?>
 
-    <p>Thank you for your payment using bKash online payment gateway. Here is your payment details</p>
+    <p><?php esc_html_e( 'Thank you for your payment using bKash online payment gateway. Here is your payment details', 'bkash-for-woocommerce-by-ezsoft' ); ?></p>
 
     <table id="extra-detail-table" class="woocommerce-table order_details" aria-describedby="extra details">
         <tr>
-            <td>Payment Method</td>
-            <td>bKash Online payment Gateway</td>
+            <td><?php esc_html_e( 'Payment Method', 'bkash-for-woocommerce-by-ezsoft' ); ?></td>
+            <td><?php esc_html_e( 'bKash Online payment Gateway', 'bkash-for-woocommerce-by-ezsoft' ); ?></td>
         </tr>
         <tr>
-            <td>Transaction ID</td>
-            <td><?php esc_html_e( $trx->getTrxID() ?? '', "bkash-for-woocommerce" ); ?></td>
+            <td><?php esc_html_e( 'Transaction ID', 'bkash-for-woocommerce-by-ezsoft' ); ?></td>
+            <td><?php echo esc_html( $trx->getTrxID() ?? '' ); ?></td>
         </tr>
         <tr>
-            <td>Payment Status</td>
-            <td><?php esc_html_e( $trx->getStatus() ?? '', "bkash-for-woocommerce" ); ?></td>
+            <td><?php esc_html_e( 'Payment Status', 'bkash-for-woocommerce-by-ezsoft' ); ?></td>
+            <td><?php echo esc_html( $trx->getStatus() ?? '' ); ?></td>
         </tr>
     </table>
 

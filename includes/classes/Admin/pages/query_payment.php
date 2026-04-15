@@ -1,4 +1,7 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 /**
  * Query Payment Admin Page Template
  *
@@ -9,7 +12,7 @@
 defined( 'ABSPATH' ) || exit;
 ?>
 <div class="wrap">
-	<h1><?php esc_html_e( 'Query Payment Status', 'woocommerce-payment-gateway-bkash' ); ?></h1>
+	<h1><?php esc_html_e( 'Query Payment Status', 'bkash-for-woocommerce-by-ezsoft' ); ?></h1>
 
 	<div class="bkash-query-payment-container">
 		<form method="post" class="bkash-query-form">
@@ -20,7 +23,7 @@ defined( 'ABSPATH' ) || exit;
 					<tr>
 						<th scope="row">
 							<label for="payment_id">
-								<?php esc_html_e( 'Payment ID', 'woocommerce-payment-gateway-bkash' ); ?>
+								<?php esc_html_e( 'Payment ID', 'bkash-for-woocommerce-by-ezsoft' ); ?>
 							</label>
 						</th>
 						<td>
@@ -30,18 +33,18 @@ defined( 'ABSPATH' ) || exit;
 								name="payment_id"
 								value="<?php echo esc_attr( $payment_id ); ?>"
 								class="regular-text"
-								placeholder="<?php esc_attr_e( 'Enter bKash Payment ID', 'woocommerce-payment-gateway-bkash' ); ?>"
+								placeholder="<?php esc_attr_e( 'Enter bKash Payment ID', 'bkash-for-woocommerce-by-ezsoft' ); ?>"
 								required
 							/>
 							<p class="description">
-								<?php esc_html_e( 'Enter the Payment ID from bKash to query its status', 'woocommerce-payment-gateway-bkash' ); ?>
+								<?php esc_html_e( 'Enter the Payment ID from bKash to query its status', 'bkash-for-woocommerce-by-ezsoft' ); ?>
 							</p>
 						</td>
 					</tr>
 				</tbody>
 			</table>
 
-			<?php submit_button( __( 'Query Payment Status', 'woocommerce-payment-gateway-bkash' ) ); ?>
+			<?php submit_button( __( 'Query Payment Status', 'bkash-for-woocommerce-by-ezsoft' ) ); ?>
 		</form>
 
 		<?php if ( ! empty( $error ) ) : ?>
@@ -52,7 +55,7 @@ defined( 'ABSPATH' ) || exit;
 
 		<?php if ( null !== $payment_data && empty( $error ) ) : ?>
 			<div class="bkash-payment-result">
-				<h2><?php esc_html_e( 'Payment Status Result', 'woocommerce-payment-gateway-bkash' ); ?></h2>
+				<h2><?php esc_html_e( 'Payment Status Result', 'bkash-for-woocommerce-by-ezsoft' ); ?></h2>
 
 				<div class="bkash-result-container">
 					<table class="widefat striped">
@@ -60,10 +63,10 @@ defined( 'ABSPATH' ) || exit;
 							<?php
 							// Display API response data
 							if ( is_array( $payment_data ) || is_object( $payment_data ) ) {
-								$payment_data = (array) $payment_data;
-								foreach ( $payment_data as $key => $value ) {
+						$payment_data = (array) $payment_data; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+						foreach ( $payment_data as $key => $value ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 									if ( is_array( $value ) || is_object( $value ) ) {
-										$value = json_encode( $value );
+										$value = json_encode( $value ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 									}
 									?>
 									<tr>
@@ -79,20 +82,20 @@ defined( 'ABSPATH' ) || exit;
 				</div>
 
 				<?php if ( null !== $local_transaction ) : ?>
-					<h3><?php esc_html_e( 'Local Transaction Record', 'woocommerce-payment-gateway-bkash' ); ?></h3>
+					<h3><?php esc_html_e( 'Local Transaction Record', 'bkash-for-woocommerce-by-ezsoft' ); ?></h3>
 					<div class="bkash-local-transaction">
 						<table class="widefat striped">
 							<tbody>
 								<tr>
-									<td><strong><?php esc_html_e( 'Transaction ID', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Transaction ID', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( $local_transaction->id ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Order ID', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Order ID', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td>
 										<?php
-										$order_id = $local_transaction->order_id;
-										$order_link = admin_url( 'post.php?post=' . $order_id . '&action=edit' );
+										$order_id = $local_transaction->order_id; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+										$order_link = admin_url( 'post.php?post=' . $order_id . '&action=edit' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 										?>
 										<a href="<?php echo esc_url( $order_link ); ?>">
 											<?php echo esc_html( '#' . $order_id ); ?>
@@ -100,15 +103,15 @@ defined( 'ABSPATH' ) || exit;
 									</td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Payment ID', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Payment ID', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( $local_transaction->payment_id ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Status', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Status', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td>
 										<?php
 										$status = $local_transaction->payment_status;
-										$status_class = 'status-' . sanitize_html_class( $status );
+										$status_class = 'status-' . sanitize_html_class( $status ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
 										?>
 										<span class="bkash-status <?php echo esc_attr( $status_class ); ?>">
 											<?php echo esc_html( ucfirst( $status ) ); ?>
@@ -116,32 +119,32 @@ defined( 'ABSPATH' ) || exit;
 									</td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Amount', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Amount', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( $local_transaction->amount ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Currency', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Currency', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( $local_transaction->currency ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Invoice ID', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Invoice ID', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( $local_transaction->invoice_id ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Payment Method', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Payment Method', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( ucfirst( $local_transaction->payment_method ) ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Payment Type', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Payment Type', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( ucfirst( $local_transaction->payment_type ) ); ?></td>
 								</tr>
 								<tr>
-									<td><strong><?php esc_html_e( 'Created On', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+									<td><strong><?php esc_html_e( 'Created On', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 									<td><?php echo esc_html( $local_transaction->date_created ); ?></td>
 								</tr>
 								<?php if ( ! empty( $local_transaction->date_modified ) ) : ?>
 									<tr>
-										<td><strong><?php esc_html_e( 'Modified On', 'woocommerce-payment-gateway-bkash' ); ?></strong></td>
+										<td><strong><?php esc_html_e( 'Modified On', 'bkash-for-woocommerce-by-ezsoft' ); ?></strong></td>
 										<td><?php echo esc_html( $local_transaction->date_modified ); ?></td>
 									</tr>
 								<?php endif; ?>

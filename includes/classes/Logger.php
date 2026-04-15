@@ -22,8 +22,10 @@ class Logger {
 	private static function write_log( $log ) {
 		if ( true === WP_DEBUG ) {
 			if ( is_array( $log ) || is_object( $log ) ) {
-				error_log( print_r( $log, true ) );
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log,WordPress.PHP.DevelopmentFunctions.error_log_var_export -- Debug logging only runs when WP_DEBUG is enabled.
+				error_log( var_export( $log, true ) );
 			} else {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Debug logging only runs when WP_DEBUG is enabled.
 				error_log( $log );
 			}
 		}
