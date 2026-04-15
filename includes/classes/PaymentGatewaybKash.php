@@ -962,7 +962,7 @@ class PaymentGatewaybKash extends WC_Payment_Gateway {
 			$bg_accent     = '#fff4ed';
 			$title         = __( 'Duplicate Payment Attempt', 'bkash-for-woocommerce-by-ezsoft' );
 			$subtitle      = __( 'A payment for this order was already attempted within the last 5 minutes.', 'bkash-for-woocommerce-by-ezsoft' );
-			$detail_msg    = ! empty( $message ) ? $message : __( 'Duplicate for All Transactions', 'bkash-for-woocommerce-by-ezsoft' );
+			$detail_msg    = ! empty( $message ) ? $message : __( 'Duplicate Transaction within the last 5 minutes.', 'bkash-for-woocommerce-by-ezsoft' );
 			$advice        = __( 'Please wait a few minutes before trying again, or contact support if you believe this is an error.', 'bkash-for-woocommerce-by-ezsoft' );
 			$icon_svg      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 		} elseif ( $is_cancelled ) {
