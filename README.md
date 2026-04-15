@@ -1,171 +1,213 @@
 # WordPress (WooCommerce) Plugin For bKash PGW
 
 ```
-- User Story and Features
+- Product: bKash for WooCommerce by EzSoft
 - Prepared By: Tahmidul Haque
 - Company: EzSoft
 - Support Email: support@ezsoftbd.com
 - Website: https://ezsoftbd.com
-- Dated: 7th April 2026
-- Version: 2.5.0
+- Dated: 16th April 2026
+- Version: 3.0.0
 ```
 
 ## Changelog
 
+### Version 3.0.0 (April 2026)
+* **Documentation Refresh**: README updated to reflect the current plugin behavior, supported integration modes, merchant tools, and customer checkout flow.
+* **HPOS Compatibility**: Confirms compatibility with WooCommerce High-Performance Order Storage for order meta and payment processing flows.
+* **WooCommerce Block Checkout Support**: Documents the dedicated block checkout integration and improved payment feedback handling for modern WooCommerce checkout.
+* **Guest Checkout Support**: Non-logged-in customers can complete bKash payments when Guest Checkout is enabled.
+* **Improved Payment State Pages**: Success, failure, cancellation, and duplicate-attempt flows use dedicated landing pages with clearer messaging.
+* **Duplicate Payment Detection**: Duplicate payment attempts blocked by bKash are surfaced with a dedicated explanation page instead of a generic error.
+* **Safer Tokenized Requests**: Tokenized payment requests use the billing phone number as payer reference and omit empty optional fields that can break API requests.
+* **Cart Preservation on Failed Attempts**: The cart remains intact until payment is confirmed successfully, allowing the customer to retry checkout.
+* **Order Notes and Logging**: Failed and cancelled payment reasons are stored on the order, and debug logging remains available for troubleshooting.
+
 ### Version 2.5.0 (April 2026)
-* **PHP 8.2 Compatibility**: Fixed deprecated dynamic property creation. All gateway class properties are now explicitly declared, resolving `E_DEPRECATED` warnings and preventing fatal crashes on PHP 8.2+.
-* **Guest Checkout Support**: Added a new "Guest Checkout" setting. When enabled, non-logged-in customers can complete payments via bKash without needing an account or saved agreement.
-* **WooCommerce Block Checkout Compatibility**: Payment failure and cancellation messages are now displayed correctly on both Classic Checkout and the modern WooCommerce Block-based Checkout. A dedicated styled failure/cancellation page is used instead of session-based notices, which Block Checkout does not support.
-* **Redesigned Payment Status Pages**: The payment success, failure, and cancellation landing pages have been completely redesigned with a modern card-based UI, clear iconography, and contextual messaging — styled to match standard WooCommerce page aesthetics.
-* **Duplicate Payment Detection**: Payments blocked by bKash due to a duplicate attempt within 5 minutes (error code 2029) now show a dedicated "Duplicate Payment Attempt" page with a clear explanation and countdown advice, instead of a generic error.
-* **Cart Preservation on Payment Failure**: The customer's cart is no longer emptied when the bKash payment window is opened. The cart is only cleared upon confirmed successful payment. This means customers can return to checkout and retry without losing their cart items.
-* **Improved Amount Formatting**: Order totals sent to the bKash API are now always formatted as a two-decimal string (e.g., `"8999.00"`), preventing potential API rejections due to floating-point precision issues.
-* **Accurate Payer Reference**: The `payerReference` field sent to the bKash Tokenized API now uses the customer's billing phone number for better traceability.
-* **Cleaner API Payload**: Optional fields (`agreementID`, `merchantAssociationInfo`) are no longer sent to the bKash API when empty, fixing HTTP 500 errors on the bKash sandbox and production tokenized endpoints.
-* **Order Notes on Failure**: When a payment fails or is cancelled, a descriptive note including the reason is now added to the WooCommerce order for merchant reference.
-* **Session Token Reset on Settings Change**: The bKash API token is automatically invalidated when plugin settings are saved, ensuring credential changes take effect immediately without manual intervention.
+* **PHP 8.2 Compatibility**: Fixed deprecated dynamic property creation to avoid warnings and fatal issues on newer PHP versions.
+* **Guest Checkout Setting**: Added a dedicated setting to allow guest users to pay with bKash.
+* **Styled Failure and Cancellation Flow**: Replaced session-only notices with dedicated status pages that also work with Block Checkout.
+* **Better Amount Formatting**: Amounts are sent to the bKash API as two-decimal strings.
+* **Session Token Reset on Settings Change**: Saving credentials invalidates the stored API token so new settings apply immediately.
 
 ---
 
-### Introduction
-Using this plugin, a merchant can set up the bKash payment gateway with their WooCommerce store. Customers can then pay for orders using bKash via multiple integration modes, including standard Checkout and Tokenized (with or without Agreement).
+## Introduction
 
-### Technical Requirements
+Using this plugin, a merchant can connect a WooCommerce store with the bKash Payment Gateway and accept payments in BDT. The plugin supports both standard Checkout and Tokenized integrations, including agreement-based recurring customer authorization flows.
+
+It also includes merchant-side operational tools for transaction lookup, refunds, transfer workflows, webhook capture, and agreement management from the WordPress admin area.
+
+## Technical Requirements
+
 * WordPress 6.4 or above
 * WooCommerce 7.0 or above
 * PHP 8.2 or above
 * MySQL 5.6 or above
 * WooCommerce currency set to **BDT**
-* Permalink structure set to "Post name" (required for WC API callbacks)
-* File write permission for `wp-content` directory
+* Permalink structure set to **Post name** for WC API callbacks
+* SSL enabled for live payments
+* Write permission for `wp-content` to allow logging
 
-### Non-Technical Requirements
+## Compatibility
+
+* WordPress tested up to **6.9**
+* WooCommerce tested up to **9.4**
+* WooCommerce **HPOS** compatible
+* WooCommerce **Cart and Checkout Blocks** compatible
+
+## Non-Technical Requirements
+
 * Active bKash Merchant Wallet
-* bKash Payment Gateway credentials (Sandbox and/or Production)
+* Valid bKash Payment Gateway credentials
+* Sandbox credentials for testing and production credentials for live use
 
+## Available Environments
 
-### Available Environments
-* Sandbox (for testing)
-* Production (live payments)
+* Sandbox
+* Production
 
-### Available Payment Methods
-* Checkout — Sale (Regular Checkout)
-* Checkout — Authorised and Capture
-* Tokenized — Without Agreement (Checkout URL)
-* Tokenized — With Agreement Only
-* Tokenized — With and Without Agreement
+## Supported Integration Types
 
-### Additional Features
-* Merchant Wallet Balance Check (Checkout only)
-* B2C Payout / Disbursement (Checkout only)
-* Intra Account Transfer
-* Webhook listener
-* Refund
-* Transaction Search
+* **Checkout**: Standard bKash checkout flow
+* **Checkout URL (Tokenized Non-Agreement)**: Tokenized payment without stored agreement
+* **Tokenized (With Agreement)**: Customer authorizes and reuses a stored agreement
+* **Tokenized (With and without Agreement)**: Supports both saved-agreement and no-agreement payment paths
 
-### Available Menus for Merchant
-*(Displayed based on selected integration type — Checkout or Tokenized)*
+## Supported Payment Intents
 
-* Transaction List
-* Search a Transaction
-* Check Balances
-* Intra Account Transfer
-* Disburse Money
-* Transfer History
-* Refund a Transaction
-* Agreements
-* Webhooks
+* **Sale**
+* **Authorized**
 
-### Actions for Merchant
+If the Authorized intent is used, merchants can later complete the transaction through capture or cancel it through void-style order handling.
 
-* ##### For Checkout:
-      - Set up and manage bKash payment gateway credentials.
-      - Set intent (Sale or Authorize).
-      - View all transactions — online and offline (via webhook).
-      - Transfer money within wallet parts (Collection, Disbursement).
-      - Refund a transaction.
-      - Disburse money to bKash customer wallets.
-      - Search a transaction from the merchant wallet.
+## Core Features
 
-* ##### For Tokenized:
-      - Set up and manage bKash payment gateway credentials.
-      - Set intent (Sale or Authorize).
-      - View all transactions — online and offline (via webhook).
-      - Refund a transaction.
-      - Search a transaction from the merchant wallet.
-      - View and delete customer agreements.
+* Standard Checkout and Tokenized bKash payment flows
+* Guest checkout support for non-logged-in customers
+* Saved agreement selection and agreement cancellation for logged-in users
+* WooCommerce Block Checkout support
+* HPOS-safe order meta handling
+* Sandbox and production credential switching
+* Configurable bKash API version
+* Dedicated success, failure, cancellation, and duplicate payment pages
+* Duplicate payment attempt handling for bKash error code `2029`
+* Order status synchronization with payment results
+* Order notes for failed or cancelled payment attempts
+* Debug logging through WooCommerce logs
 
-### Customer Payment Experience
+## Merchant Tools
 
-* ##### Payment Successful:
-      - Customer is redirected to a styled "Payment Successful" page.
-      - Order status is automatically updated to "Completed" or "On-Hold" (based on intent).
-      - Customer receives an order confirmation email.
+Depending on the selected integration type and enabled features, the plugin provides:
 
-* ##### Payment Cancelled:
-      - If the customer closes the bKash payment modal, they are redirected to a "Payment Cancelled" page.
-      - Order status is automatically updated to "Cancelled".
-      - No charges are made. Cart items are preserved so the customer can retry.
+* Transaction list
+* Transaction search
+* Wallet balance check
+* Intra-account transfer
+* B2C disbursement
+* Transfer history
+* Refund processing
+* Agreement management
+* Webhook listener and webhook log storage
 
-* ##### Payment Failed:
-      - If payment fails (e.g., wrong PIN, 3 failed OTP attempts, API error), the customer is redirected to a "Payment Failed" page.
-      - A clear error message is shown explaining the reason.
-      - Order status is automatically updated to "Failed".
-      - Customer can return to checkout and try again.
+## Merchant Actions
 
-* ##### Duplicate Payment Attempt:
-      - If bKash blocks a payment as a duplicate (within 5 minutes of a prior attempt), a dedicated "Duplicate Payment Attempt" page is shown.
-      - The customer is advised to wait before retrying or contact support.
+### For Checkout Integrations
 
----
+* Configure sandbox or production credentials
+* Choose Sale or Authorized payment intent
+* Accept customer payments from WooCommerce checkout
+* Check merchant wallet balances
+* Transfer balance between wallet parts
+* Disburse money to customer wallets
+* Search and review transactions
+* Refund eligible transactions
+* Receive and store webhook data
+
+### For Tokenized Integrations
+
+* Configure tokenized payment credentials
+* Choose Sale or Authorized payment intent
+* Allow customers to pay using saved agreements
+* Allow guest payments without agreement when Guest Checkout is enabled
+* Search and review transactions
+* Refund eligible transactions
+* View and cancel stored customer agreements
+
+## Customer Payment Experience
+
+### Payment Successful
+
+* Customer is redirected to a styled success page
+* Order status changes to **Completed** or **On-Hold** based on intent
+* Customer is then redirected to the WooCommerce order confirmation page
+
+### Payment Cancelled
+
+* If the customer closes or cancels the bKash flow, they are redirected to a cancellation page
+* Order status changes to **Cancelled** when appropriate
+* The cart remains available so the customer can try again
+
+### Payment Failed
+
+* Failed API or customer-side payment attempts redirect to a failure page
+* A human-readable reason is shown where available
+* Order status changes to **Failed** when payment creation or execution fails
+* A failure note is added to the order for merchant reference
+
+### Duplicate Payment Attempt
+
+* If bKash blocks a duplicate payment within the protected window, the customer sees a dedicated duplicate-attempt page
+* The page explains that duplicate payments are blocked temporarily and advises retrying later
 
 ## Setup Guide
 
-### Steps to Enable
-1. Download and set up WordPress.
-2. From **Plugins → Add New**, install and activate the WooCommerce plugin.
-3. Complete WooCommerce setup.
-4. Install this plugin by uploading the zip file via **Plugins → Add New → Upload Plugin**.
-5. Activate the plugin, then go to **WooCommerce → Settings → Payments**.
-6. Find **bKash Payment Gateway** and click **Manage**.
-7. Enter your bKash PGW credentials (Sandbox or Production) and configure settings.
-8. Save changes. bKash should now be available at checkout.
+### Installation Steps
 
-> **Important**: Set WordPress Permalink structure to **Post name** (Settings → Permalinks) and ensure `.htaccess` is rewritable. Without this, payment callback URLs will not work.
+1. Install WordPress and WooCommerce.
+2. Upload this plugin from **Plugins -> Add New -> Upload Plugin** or place it in the plugins directory.
+3. Activate the plugin.
+4. Go to **WooCommerce -> Settings -> Payments**.
+5. Open **bKash Payment Gateway** settings.
+6. Enable the gateway and choose the required integration type.
+7. Enter sandbox or production credentials.
+8. Select payment intent and any optional features such as Guest Checkout, Webhook, Debug Log, or B2C.
+9. Save changes and verify checkout from the storefront.
 
-### Guest Checkout
-To allow non-logged-in customers to pay with bKash, enable the **"Guest Checkout"** option in the bKash payment settings. Guest users on Tokenized integrations will pay without a saved agreement (using their billing phone number as the payer reference).
+> **Important:** WordPress permalinks should be set to **Post name** so WooCommerce callback endpoints work correctly.
 
-### Webhook Configuration
-Enable the **Webhook** option in plugin settings and share the displayed webhook URL with the bKash team.
+## Guest Checkout
 
-### Payment Callback Handling
-The plugin implements proper callback handling as per bKash PGW requirements:
+Enable **Guest Checkout** in the payment settings if you want non-logged-in customers to pay with bKash. In tokenized modes, guest users will pay without a stored agreement and the billing phone number is used as the payer reference.
 
-* **Success Callback**: After successful payment, customer is redirected to a success confirmation page and the order is marked complete.
-* **Failure Callback**: On payment failure, customer lands on a styled failure page with the error reason. Works with both Classic and Block Checkout.
-* **Cancellation Handling**: When the customer closes the bKash modal, the payment is cancelled and the order status is updated. No Execute API call is made.
-* **Duplicate Payment Handling**: A dedicated page is shown when bKash rejects a payment as a duplicate (error 2029).
+## Webhook Configuration
 
-### Authorisation (Capture / Void) Process
-* **Capture**: Change order status from **On-Hold** → **Completed**.
-* **Void**: Change order status from **On-Hold** → **Cancelled**.
+Enable the **Webhook** option in the payment settings to generate the callback URL. Share that URL with the bKash team so webhook notifications can be delivered to your store.
 
-These actions trigger the corresponding bKash Capture/Void API calls automatically.
+## Payment Callback Handling
 
----
+The plugin handles the bKash payment lifecycle with dedicated WooCommerce callback endpoints:
 
-## Additional Features
+* **Success Callback**: Executes the payment, updates the order, and shows a styled success page before redirecting to the order-received screen.
+* **Failure Callback**: Redirects the customer to a dedicated failure page with the error message.
+* **Cancellation Callback**: Marks the order and stored transaction as cancelled when the payment is abandoned.
+* **Duplicate Attempt Handling**: Detects duplicate payment responses and shows a specific duplicate-attempt page.
 
-* **Comprehensive Logging**: All payment events are logged when Debug Mode is enabled (WooCommerce → Status → Logs → `bkash-for-woocommerce_<date>.log`).
+## Authorization Flow
 
-* **Order Status Management**: Automatically reflects payment outcome:
-  - Successful → "Completed" or "On-Hold" (based on intent)
-  - Failed → "Failed" (reason added to order notes)
-  - Cancelled → "Cancelled"
+For Authorized payments:
 
-* **Styled Payment Status Pages**: Modern, mobile-responsive pages for success, failure, cancellation, and duplicate payment scenarios — with contextual icons, messages, and action buttons.
+* Change the order status from **On-Hold** to **Completed** to capture the payment.
+* Change the order status from **On-Hold** to **Cancelled** to void the authorized payment.
 
-* **Refund**: Initiate a refund directly from WooCommerce order actions.
+These order transitions trigger the corresponding bKash API flow supported by the plugin.
 
-* **Paginated Transaction Lists**: All transaction and history lists show 10 entries per page.
+## Logging and Troubleshooting
+
+* Enable **Debug Log** from the gateway settings to record payment events.
+* Log files are available under **WooCommerce -> Status -> Logs**.
+* Failure and cancellation reasons are also written into WooCommerce order notes.
+
+## Summary
+
+Version 3.0.0 documents the plugin as it exists today: a WooCommerce bKash gateway with Checkout and Tokenized modes, guest support, block checkout compatibility, HPOS compatibility, operational merchant tooling, and clearer customer-facing payment status handling.
